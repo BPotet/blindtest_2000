@@ -1,7 +1,7 @@
 ---
 phase: 1
 slug: comptes-hote-creation-de-quiz
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-07-27
@@ -77,6 +77,34 @@ Additional semantic tokens (needed beyond the 60/30/10 base because clip-extract
 | Text muted | `#64748B` (slate-500) | Secondary/meta text (timestamps, question counts, helper text) |
 
 Accent reserved for: the 6 primary CTAs listed above, focus rings, and links — never used for status badges (success/warning/destructive own their own colors) and never used as a decorative fill.
+
+---
+
+## Visual Hierarchy (focal points)
+
+| Screen | Primary focal point |
+|--------|----------------------|
+| Login/signup | The form itself, vertically centered — the primary CTA button is the single accent-colored element on the page |
+| Quiz list (empty) | The "Créer un quiz" CTA — only accent element visible |
+| Quiz list (populated) | The list of quiz cards; CTA moves to a persistent top-right position, no longer the sole visual anchor |
+| Question list | The "Ajouter une question" CTA when empty; once populated, the clip status badges (Success/Warning/Destructive colors) are the primary scan target — hosts need to spot failed extractions at a glance |
+| Question editor | The clip status badge + preview player — the YouTube URL/timestamp form is secondary once a clip exists |
+
+---
+
+## Accessibility — icon-only buttons
+
+All icon-only buttons (no visible text label) MUST carry an `aria-label` in French naming the action, matching the icon's intent:
+
+| Icon-only button | `aria-label` |
+|---|---|
+| Delete quiz | `Supprimer ce quiz` |
+| Delete question | `Supprimer cette question` |
+| Remove decoy | `Supprimer ce leurre` |
+| Re-cut clip | `Re-couper le clip` |
+| Play/pause clip preview | `Lire le clip` / `Mettre en pause` (toggles with state) |
+| Remove/change uploaded file | `Changer le fichier` |
+| Logout (if icon-only in nav) | `Se déconnecter` |
 
 ---
 
@@ -175,11 +203,11 @@ Applicable state considerations resolved: 22 covered, 3 backstop, 1 unresolved
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS (non-blocking flags resolved — focal points + a11y labels added above)
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved (2026-07-27)
