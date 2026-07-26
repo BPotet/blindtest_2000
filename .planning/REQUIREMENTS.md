@@ -74,34 +74,32 @@ Exclu explicitement du produit. Reasoning inclus pour éviter toute réintroduct
 
 ## Traceability
 
-À compléter lors de la création de la roadmap (`/gsd-new-project`, étape suivante).
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | TBD | Pending |
-| AUTH-02 | TBD | Pending |
-| QUIZ-01 | TBD | Pending |
-| QUIZ-02 | TBD | Pending |
-| QUIZ-03 | TBD | Pending |
-| QUIZ-04 | TBD | Pending |
-| ROOM-01 | TBD | Pending |
-| ROOM-02 | TBD | Pending |
-| ROOM-03 | TBD | Pending |
-| ROOM-04 | TBD | Pending |
-| ROOM-05 | TBD | Pending |
-| GAME-01 | TBD | Pending |
-| GAME-02 | TBD | Pending |
-| GAME-03 | TBD | Pending |
-| GAME-04 | TBD | Pending |
-| SCORE-01 | TBD | Pending |
-| SCORE-02 | TBD | Pending |
-| RELY-01 | TBD | Pending |
+| AUTH-01 | Phase 1 | Pending |
+| AUTH-02 | Phase 2 | Pending |
+| QUIZ-01 | Phase 1 | Pending |
+| QUIZ-02 | Phase 1 | Pending |
+| QUIZ-03 | Phase 1 | Pending |
+| QUIZ-04 | Phase 1 | Pending |
+| ROOM-01 | Phase 2 | Pending |
+| ROOM-02 | Phase 2 | Pending |
+| ROOM-03 | Phase 2 | Pending |
+| ROOM-04 | Phase 2 | Pending |
+| ROOM-05 | Phase 2 | Pending |
+| GAME-01 | Phase 3 | Pending |
+| GAME-02 | Phase 3 | Pending |
+| GAME-03 | Phase 3 | Pending |
+| GAME-04 | Phase 3 | Pending |
+| SCORE-01 | Phase 3 | Pending |
+| SCORE-02 | Phase 3 | Pending |
+| RELY-01 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 18 total
-- Mapped to phases: 0 (en attente de la roadmap)
-- Unmapped: 18 ⚠️ (attendu à ce stade — sera résolu par `/gsd-new-project`)
+- Mapped to phases: 18/18 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-26*
-*Last updated: 2026-07-26 after initial definition*
+*Last updated: 2026-07-26 after roadmap creation (traceability mapped to Phases 1-3)*
