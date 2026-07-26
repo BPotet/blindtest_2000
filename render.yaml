@@ -1,0 +1,22 @@
+# Blueprint Render — déploiement en un clic.
+# Dans Render : New > Blueprint > pointe sur ce dépôt/branche. Render lit ce fichier.
+#
+# Deux runtimes possibles ci-dessous. Le runtime "node" (actif) est le plus simple :
+# pas de Docker, Render installe Node et lance l'app. Le Dockerfile fourni permet
+# l'alternative "runtime: docker" si tu préfères une image conteneurisée.
+services:
+  - type: web
+    name: blindtest-2000
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22.22.2"
+      - key: NODE_ENV
+        value: production
+      # PUBLIC_BASE_URL est facultatif : Render expose RENDER_EXTERNAL_URL,
+      # que l'app utilise automatiquement pour générer l'URL du QR code.
