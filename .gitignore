@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-electron/
+build/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# Claude Code local-only settings (machine-specific paths)
+.claude/settings.local.json
