@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blindtest 2000 — Hôte</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://www.youtube.com" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="brand">
+      <span class="brand__logo">Blindtest 2000</span>
+      <span class="brand__tag">écran de l'hôte</span>
+    </header>
+
+    <!-- Accueil : choix / création de quiz -->
+    <section id="screen-home" class="screen screen--active">
+      <div class="card">
+        <h1>Lance un blindtest</h1>
+        <p class="muted">Choisis un quiz, ouvre une salle, et laisse tes amis rejoindre depuis leur téléphone.</p>
+        <div id="quiz-list" class="quiz-list"><p class="muted">Chargement des quiz…</p></div>
+      </div>
+
+      <div class="card">
+        <div class="btn-row">
+          <button id="toggle-builder" class="btn btn--ghost">➕ Créer mon propre quiz</button>
+        </div>
+        <div id="builder" style="display:none; margin-top:18px;">
+          <h2>Nouveau quiz</h2>
+          <label for="quiz-title">Titre du quiz</label>
+          <input id="quiz-title" placeholder="Ex. Spécial variété française" />
+          <div id="builder-rounds"></div>
+          <div class="btn-row" style="margin-top:12px;">
+            <button id="add-round" class="btn btn--ghost">➕ Ajouter une manche</button>
+            <button id="save-quiz" class="btn btn--success">💾 Enregistrer le quiz</button>
+          </div>
+          <p class="hint">Astuce : colle une URL YouTube (ou juste l'ID). L'extrait est joué sur cet écran ;
+            les joueurs répondent au QCM sur leur téléphone.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Lobby -->
+    <section id="screen-lobby" class="screen">
+      <div class="card">
+        <p class="muted center" id="lobby-quiz-title"></p>
+        <div class="lobby-code" id="lobby-code">-----</div>
+        <div class="lobby-grid">
+          <div class="qr"><img id="lobby-qr" alt="QR code pour rejoindre" /></div>
+          <div>
+            <p>Pour rejoindre, scanne le QR code ou va sur :</p>
+            <p class="join-url"><strong id="lobby-url"></strong></p>
+            <p class="muted">…puis saisis le code <strong id="lobby-code-inline"></strong>.</p>
+            <p style="margin-top:16px;">Joueurs connectés : <span class="count-pill" id="player-count">0</span></p>
+            <div class="players" id="lobby-players"></div>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:20px;">
+          <button id="start-game" class="btn btn--lg btn--success" disabled>▶️ Démarrer la partie</button>
+        </div>
+        <p class="hint center" id="start-hint">En attente d'au moins un joueur…</p>
+      </div>
+    </section>
+
+    <!-- Manche en cours -->
+    <section id="screen-round" class="screen">
+      <div class="card">
+        <div class="round-head">
+          <h2 id="round-progress">Manche</h2>
+          <div class="timer" id="round-timer">--</div>
+        </div>
+        <div class="yt-wrap"><div id="yt-player"></div></div>
+        <div class="progress"><div class="progress__bar" id="round-bar"></div></div>
+        <h2 id="round-question" class="center"></h2>
+        <div class="options" id="round-options"></div>
+        <p class="center" style="margin-top:16px;">
+          Réponses reçues : <span class="count-pill" id="answer-count">0 / 0</span>
+        </p>
+        <div class="btn-row" style="margin-top:16px;">
+          <button id="reveal-answer" class="btn btn--lg">🔎 Révéler la réponse</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Résultat de manche -->
+    <section id="screen-result" class="screen">
+      <div class="card center">
+        <p class="muted">La réponse était</p>
+        <h1 id="result-answer"></h1>
+      </div>
+      <div class="card">
+        <h2>Classement</h2>
+        <div class="leaderboard" id="result-leaderboard"></div>
+        <div class="btn-row" style="margin-top:20px;">
+          <button id="next-round" class="btn btn--lg btn--success">▶️ Manche suivante</button>
+          <button id="end-game" class="btn btn--lg btn--ghost">🏁 Terminer la partie</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Fin de partie -->
+    <section id="screen-ended" class="screen">
+      <div class="card center">
+        <h1>🏆 Partie terminée !</h1>
+        <div class="leaderboard" id="final-leaderboard" style="margin-top:16px;"></div>
+        <div class="btn-row" style="margin-top:24px;">
+          <button onclick="location.href='/'" class="btn btn--lg">🔁 Nouvelle partie</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/host.js"></script>
+</body>
+</html>

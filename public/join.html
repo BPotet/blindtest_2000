@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Blindtest 2000 — Rejoindre</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="brand">
+      <span class="brand__logo">Blindtest 2000</span>
+    </header>
+
+    <!-- Écran de connexion -->
+    <section id="screen-join" class="screen screen--active">
+      <div class="card">
+        <h1>Rejoindre une partie</h1>
+        <label for="join-code">Code de la salle</label>
+        <input id="join-code" inputmode="latin" autocapitalize="characters" autocomplete="off"
+               maxlength="6" placeholder="Ex. ABCDE" style="text-transform:uppercase; letter-spacing:0.2em; font-weight:800;" />
+        <div class="field-error" id="code-error"></div>
+        <label for="join-pseudo">Ton pseudo</label>
+        <input id="join-pseudo" maxlength="24" autocomplete="off" placeholder="Ex. DJ Kévin" />
+        <div class="field-error" id="pseudo-error"></div>
+        <button id="join-btn" class="btn btn--lg" style="margin-top:12px;">Rejoindre</button>
+      </div>
+    </section>
+
+    <!-- Salle d'attente -->
+    <section id="screen-wait" class="screen">
+      <div class="card center">
+        <h1>Bienvenue, <span id="wait-pseudo"></span> !</h1>
+        <p class="muted" id="wait-quiz"></p>
+        <div class="spinner" style="margin:24px auto; width:36px; height:36px;"></div>
+        <p>En attente du démarrage par l'hôte…</p>
+      </div>
+    </section>
+
+    <!-- Question en cours -->
+    <section id="screen-question" class="screen">
+      <div class="card">
+        <div class="round-head">
+          <span class="badge" id="q-progress"></span>
+        </div>
+        <h2 id="q-text" class="center">Écoute bien…</h2>
+        <div class="options" id="q-options"></div>
+        <p class="center muted" id="q-status" style="margin-top:16px;"></p>
+      </div>
+    </section>
+
+    <!-- Résultat de la manche -->
+    <section id="screen-feedback" class="screen">
+      <div id="feedback-banner" class="result-banner">
+        <h2 id="feedback-title"></h2>
+        <div class="big-points" id="feedback-points"></div>
+        <p id="feedback-answer" class="muted"></p>
+      </div>
+      <div class="card">
+        <h2>Classement</h2>
+        <div class="leaderboard" id="feedback-leaderboard"></div>
+      </div>
+    </section>
+
+    <!-- Fin de partie -->
+    <section id="screen-final" class="screen">
+      <div class="card center">
+        <h1>🏆 Terminé !</h1>
+        <p class="muted">Ton classement final</p>
+        <div class="big-points" id="final-rank"></div>
+        <p id="final-score" class="muted"></p>
+      </div>
+      <div class="card">
+        <div class="leaderboard" id="final-board"></div>
+        <button onclick="location.href='/join'" class="btn btn--lg" style="margin-top:16px;">Rejouer</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/player.js"></script>
+</body>
+</html>
