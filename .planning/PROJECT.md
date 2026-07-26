@@ -49,9 +49,12 @@ Permettre à n'importe quel hôte de lancer un blindtest musical avec un nombre 
 
 ## Constraints
 
-- **Fiabilité extraction**: L'extraction YouTube n'est pas garantie à 100% (vidéo privée, géo-restreinte, retirée) — le fallback upload manuel est une exigence v1, pas une amélioration optionnelle.
+- **Fiabilité extraction**: L'extraction YouTube n'est pas garantie à 100% (vidéo privée, géo-restreinte, retirée, blocage anti-bot des IP de datacenter) — le fallback upload manuel est une exigence v1, pas une amélioration optionnelle.
+- **Risque légal extraction**: Une décision de justice fédérale US (2026) a établi que les outils de type stream-ripping (yt-dlp) peuvent engager une responsabilité DMCA indépendamment du statut du contenu — risque accepté consciemment par l'auteur pour un usage à petite échelle, à réévaluer si le service grandit publiquement.
 - **Multi-parties simultanées**: Le service devant accueillir plusieurs hôtes/parties en parallèle, l'architecture doit isoler l'état de chaque partie (pas d'hypothèse d'instance unique).
-- **Tech stack**: Non fixée — à choisir après recherche du domaine (voir étape recherche de `/gsd-new-project`).
+- **Pas de GitHub Pages seul**: GitHub Pages est un hébergement statique uniquement — incompatible avec le besoin d'un serveur Node.js persistant (Socket.IO temps réel, exécution de binaires ffmpeg/yt-dlp). Le frontend ET le backend sont hébergés ensemble sur Render.
+- **Stockage audio hors plateforme d'hébergement**: Le disque d'un service Render n'est pas persistant entre redéploiements — les clips audio extraits/uploadés sont stockés sur Cloudflare R2, pas sur le serveur applicatif.
+- **Tech stack**: Node.js + Socket.IO + PostgreSQL + yt-dlp/ffmpeg (binaires, pas de wrapper npm type fluent-ffmpeg, archivé) — détail complet dans `.planning/research/STACK.md`.
 
 ## Key Decisions
 
@@ -62,6 +65,8 @@ Permettre à n'importe quel hôte de lancer un blindtest musical avec un nombre 
 | Fallback upload déclenché automatiquement par l'app à l'échec d'extraction | Réduit la friction pour l'hôte, pas besoin de deviner à l'avance si un lien va marcher | — Pending |
 | Service ouvert à plusieurs hôtes (comptes, pas juste usage perso) | L'utilisateur veut que d'autres personnes puissent aussi créer leurs comptes et héberger leurs propres parties | — Pending |
 | Scoring vitesse + exactitude façon Kahoot | Reproduit la dynamique compétitive familière de Kahoot | — Pending |
+| Hébergement unique sur Render (frontend + backend + Postgres) | GitHub Pages seul seul ne supporte pas de serveur persistant ; Render offre un dashboard simple, un tier gratuit pour démarrer, et un palier payant abordable (~7$/mois) pour du "toujours allumé" | — Pending |
+| Stockage des clips audio sur Cloudflare R2 | Nécessaire techniquement : le disque de Render n'est pas persistant entre redéploiements ; R2 offre 10 Go gratuits sans frais de sortie | — Pending |
 
 ## Evolution
 
@@ -81,4 +86,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-26 after initialization*
+*Last updated: 2026-07-26 after hosting decision*
