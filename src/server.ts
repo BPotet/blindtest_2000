@@ -15,6 +15,7 @@ import {
   hostReconnectSchema,
   answerSchema,
   createQuizSchema,
+  type CreateQuizInput,
 } from './validation';
 import {
   loadAuthConfig,
@@ -126,16 +127,11 @@ export function buildServer(
   app.post('/api/quizzes', requireAuth, async (req, res) => {
     try {
       const input = createQuizSchema.parse(req.body);
-      const rounds = input.rounds.map((r) => ({
-        youtubeId: r.youtube,
-        startSeconds: r.startSeconds,
-        durationSeconds: r.durationSeconds,
-        question: r.question,
-        options: r.options,
-        correctIndex: r.correctIndex,
-        answerLabel: r.answerLabel,
-      }));
-      const quiz = await quizRepo.create(res.locals.userId as string, input.title, rounds);
+      const quiz = await quizRepo.create(
+        res.locals.userId as string,
+        input.title,
+        mapValidatedRounds(input.rounds),
+      );
       res.status(201).json({ id: quiz.id, title: quiz.title, roundCount: quiz.rounds.length });
     } catch (err) {
       if (err instanceof ZodError) {
@@ -144,6 +140,47 @@ export function buildServer(
       }
       res.status(500).json({ error: 'server_error' });
     }
+  });
+
+  app.get('/api/quizzes/:id', requireAuth, async (req, res) => {
+    const quiz = await quizRepo.get(req.params.id);
+    if (!quiz || !canAccessQuiz(quiz, res.locals.userId as string)) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
+    res.json(quiz);
+  });
+
+  app.put('/api/quizzes/:id', requireAuth, async (req, res) => {
+    try {
+      const input = createQuizSchema.parse(req.body);
+      const quiz = await quizRepo.update(
+        req.params.id,
+        res.locals.userId as string,
+        input.title,
+        mapValidatedRounds(input.rounds),
+      );
+      if (!quiz) {
+        res.status(404).json({ error: 'not_found_or_forbidden' });
+        return;
+      }
+      res.json({ id: quiz.id, title: quiz.title, roundCount: quiz.rounds.length });
+    } catch (err) {
+      if (err instanceof ZodError) {
+        res.status(400).json({ error: 'invalid_quiz', issues: err.issues });
+        return;
+      }
+      res.status(500).json({ error: 'server_error' });
+    }
+  });
+
+  app.delete('/api/quizzes/:id', requireAuth, async (req, res) => {
+    const ok = await quizRepo.delete(req.params.id, res.locals.userId as string);
+    if (!ok) {
+      res.status(404).json({ error: 'not_found_or_forbidden' });
+      return;
+    }
+    res.json({ ok: true });
   });
 
   app.get('/api/room/:code', (req, res) => {
@@ -190,6 +227,18 @@ export function buildServer(
   pruneTimer.unref?.();
 
   return { app, httpServer, io, quizRepo, roomManager };
+}
+
+function mapValidatedRounds(rounds: CreateQuizInput['rounds']) {
+  return rounds.map((r) => ({
+    youtubeId: r.youtube,
+    startSeconds: r.startSeconds,
+    durationSeconds: r.durationSeconds,
+    question: r.question,
+    options: r.options,
+    correctIndex: r.correctIndex,
+    answerLabel: r.answerLabel,
+  }));
 }
 
 function buildJoinUrl(

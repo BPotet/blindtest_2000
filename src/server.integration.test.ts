@@ -92,6 +92,74 @@ describe('Authentification hôte', () => {
   });
 });
 
+describe('CRUD playlists (HTTP)', () => {
+  const body = {
+    title: 'Ma playlist',
+    rounds: [
+      {
+        youtube: 'dQw4w9WgXcQ',
+        startSeconds: 0,
+        durationSeconds: 20,
+        question: 'Q ?',
+        options: ['A', 'B'],
+        correctIndex: 0,
+        answerLabel: 'A',
+      },
+    ],
+  };
+  const json = (extra: Record<string, string> = {}) => ({
+    'Content-Type': 'application/json',
+    Cookie: cookie,
+    ...extra,
+  });
+
+  it('crée, édite, puis supprime une playlist', async () => {
+    const create = await fetch(`http://localhost:${port}/api/quizzes`, {
+      method: 'POST',
+      headers: json(),
+      body: JSON.stringify(body),
+    });
+    expect(create.status).toBe(201);
+    const { id } = (await create.json()) as { id: string };
+
+    const put = await fetch(`http://localhost:${port}/api/quizzes/${id}`, {
+      method: 'PUT',
+      headers: json(),
+      body: JSON.stringify({ ...body, title: 'Renommée' }),
+    });
+    expect(put.status).toBe(200);
+
+    const del = await fetch(`http://localhost:${port}/api/quizzes/${id}`, {
+      method: 'DELETE',
+      headers: { Cookie: cookie },
+    });
+    expect(del.status).toBe(200);
+
+    const del2 = await fetch(`http://localhost:${port}/api/quizzes/${id}`, {
+      method: 'DELETE',
+      headers: { Cookie: cookie },
+    });
+    expect(del2.status).toBe(404);
+  });
+
+  it('refuse de supprimer une démo (404)', async () => {
+    const del = await fetch(`http://localhost:${port}/api/quizzes/demo-tubes`, {
+      method: 'DELETE',
+      headers: { Cookie: cookie },
+    });
+    expect(del.status).toBe(404);
+  });
+
+  it('refuse la création sans session (401)', async () => {
+    const res = await fetch(`http://localhost:${port}/api/quizzes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(401);
+  });
+});
+
 describe('Flux de partie de bout en bout (Socket.IO)', () => {
   it('joue une manche complète : join, réponse, scoring serveur, classement', async () => {
     const host = connectHost();

@@ -132,4 +132,30 @@ export class PostgresQuizStore implements QuizRepository {
     );
     return quiz;
   }
+
+  async update(
+    id: string,
+    ownerId: string,
+    title: string,
+    rounds: Array<Omit<Round, 'id'>>,
+  ): Promise<Quiz | null> {
+    const withIds = withRoundIds(rounds);
+    const { rows } = await this.pool.query(
+      `UPDATE quizzes SET title = $1, rounds = $2
+       WHERE id = $3 AND owner_id = $4
+       RETURNING id, title, rounds, owner_id`,
+      [title, JSON.stringify(withIds), id, ownerId],
+    );
+    if (rows.length === 0) return null;
+    const row = rows[0];
+    return { id: row.id, title: row.title, rounds: row.rounds as Round[], ownerId: row.owner_id };
+  }
+
+  async delete(id: string, ownerId: string): Promise<boolean> {
+    const res = await this.pool.query(`DELETE FROM quizzes WHERE id = $1 AND owner_id = $2`, [
+      id,
+      ownerId,
+    ]);
+    return (res.rowCount ?? 0) > 0;
+  }
 }

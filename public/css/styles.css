@@ -100,6 +100,7 @@ h2 { font-size: clamp(20px, 3vw, 26px); }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn--lg { padding: 18px 30px; font-size: 18px; width: 100%; }
+.btn--sm { padding: 9px 14px; font-size: 14px; }
 .btn--ghost { background: transparent; border: 1px solid rgba(255, 255, 255, 0.18); }
 .btn--success { background: var(--success); }
 .btn--danger { background: var(--danger); }
@@ -128,6 +129,7 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
   background: var(--surface-2); border-radius: var(--radius-sm); padding: 16px;
 }
 .quiz-item__meta { min-width: 0; }
+.quiz-item__actions { display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
 .quiz-item__title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .badge { font-size: 12px; color: var(--text-muted); }
 

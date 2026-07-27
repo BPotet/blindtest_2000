@@ -33,6 +33,26 @@ describe('MemoryQuizStore — quiz', () => {
     expect(fetched?.rounds[0].id).toBe('r1');
   });
 
+  it('met à jour un quiz possédé, refuse ceux des autres et les démos', async () => {
+    const store = new MemoryQuizStore();
+    const mine = await store.create(OWNER, 'Avant', sampleRounds);
+    const updated = await store.update(mine.id, OWNER, 'Après', sampleRounds);
+    expect(updated?.title).toBe('Après');
+    // pas le propriétaire → refus
+    expect(await store.update(mine.id, 'u_autre', 'Pirate', sampleRounds)).toBeNull();
+    // démo → refus (ownerId null)
+    expect(await store.update('demo-tubes', OWNER, 'Hack', sampleRounds)).toBeNull();
+  });
+
+  it('supprime un quiz possédé, refuse ceux des autres et les démos', async () => {
+    const store = new MemoryQuizStore();
+    const mine = await store.create(OWNER, 'À supprimer', sampleRounds);
+    expect(await store.delete(mine.id, 'u_autre')).toBe(false);
+    expect(await store.delete('demo-tubes', OWNER)).toBe(false);
+    expect(await store.delete(mine.id, OWNER)).toBe(true);
+    expect(await store.get(mine.id)).toBeUndefined();
+  });
+
   it("ne montre pas les quiz d'un autre propriétaire", async () => {
     const store = new MemoryQuizStore();
     const mine = await store.create(OWNER, 'À moi', sampleRounds);

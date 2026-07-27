@@ -31,10 +31,19 @@ export interface QuizRepository {
   getUserById(id: string): Promise<User | undefined>;
 
   // Quiz — `ownerId` est celui de l'utilisateur connecté ; les démos (ownerId null)
-  // restent visibles par tous.
+  // restent visibles par tous, mais ne peuvent être ni modifiées ni supprimées.
   list(ownerId: string): Promise<QuizSummary[]>;
   get(id: string): Promise<Quiz | undefined>;
   create(ownerId: string, title: string, rounds: Array<Omit<Round, 'id'>>): Promise<Quiz>;
+  /** Met à jour un quiz possédé par `ownerId`. Renvoie null si absent/non autorisé. */
+  update(
+    id: string,
+    ownerId: string,
+    title: string,
+    rounds: Array<Omit<Round, 'id'>>,
+  ): Promise<Quiz | null>;
+  /** Supprime un quiz possédé par `ownerId`. Renvoie false si absent/non autorisé. */
+  delete(id: string, ownerId: string): Promise<boolean>;
 }
 
 /** Ajoute des identifiants de manche déterministes (r1, r2, …). */
@@ -100,6 +109,26 @@ export class MemoryQuizStore implements QuizRepository {
     const quiz: Quiz = { id: generateId('quiz'), title, ownerId, rounds: withRoundIds(rounds) };
     this.quizzes.set(quiz.id, quiz);
     return quiz;
+  }
+
+  async update(
+    id: string,
+    ownerId: string,
+    title: string,
+    rounds: Array<Omit<Round, 'id'>>,
+  ): Promise<Quiz | null> {
+    const existing = this.quizzes.get(id);
+    if (!existing || existing.ownerId !== ownerId) return null;
+    const updated: Quiz = { ...existing, title, rounds: withRoundIds(rounds) };
+    this.quizzes.set(id, updated);
+    return updated;
+  }
+
+  async delete(id: string, ownerId: string): Promise<boolean> {
+    const existing = this.quizzes.get(id);
+    if (!existing || existing.ownerId !== ownerId) return false;
+    this.quizzes.delete(id);
+    return true;
   }
 }
 

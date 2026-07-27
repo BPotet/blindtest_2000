@@ -14,6 +14,7 @@
     ytReady: false,
     lastResults: null,
     authed: false,
+    editingQuizId: null,
   };
 
   // --- API YouTube IFrame -------------------------------------------------
@@ -67,6 +68,7 @@
   async function loadQuizzes() {
     try {
       const res = await fetch('/api/quizzes');
+      if (res.status === 401) { state.authed = false; show('screen-login'); return; }
       const data = await res.json();
       const list = $('#quiz-list');
       list.innerHTML = '';
@@ -77,11 +79,30 @@
           `<div class="quiz-item__meta">` +
           `<div class="quiz-item__title">${escapeHtml(q.title)}</div>` +
           `<div class="badge">${q.roundCount} manche(s)${q.isDemo ? ' · démo' : ''}</div></div>`;
-        const btn = document.createElement('button');
-        btn.className = 'btn';
-        btn.textContent = 'Ouvrir une salle';
-        btn.onclick = () => socket.emit('host:createRoom', { quizId: q.id });
-        item.appendChild(btn);
+        const actions = document.createElement('div');
+        actions.className = 'quiz-item__actions';
+
+        const open = document.createElement('button');
+        open.className = 'btn';
+        open.textContent = 'Ouvrir une salle';
+        open.onclick = () => socket.emit('host:createRoom', { quizId: q.id });
+        actions.appendChild(open);
+
+        if (!q.isDemo) {
+          const edit = document.createElement('button');
+          edit.className = 'btn btn--ghost btn--sm';
+          edit.textContent = '✏️ Éditer';
+          edit.onclick = () => editQuiz(q.id);
+          actions.appendChild(edit);
+
+          const del = document.createElement('button');
+          del.className = 'btn btn--ghost btn--sm';
+          del.textContent = '🗑️';
+          del.setAttribute('aria-label', `Supprimer ${q.title}`);
+          del.onclick = () => deleteQuiz(q.id, q.title);
+          actions.appendChild(del);
+        }
+        item.appendChild(actions);
         list.appendChild(item);
       });
       if (data.quizzes.length === 0) list.innerHTML = '<p class="muted">Aucun quiz. Crée-en un ci-dessous.</p>';
@@ -138,35 +159,81 @@
 
   // --- Constructeur de quiz ----------------------------------------------
   let roundCount = 0;
-  function addRoundBlock() {
+  function addRoundBlock(data) {
     roundCount += 1;
     const n = roundCount;
+    const opts = data && data.options && data.options.length ? data.options : ['', '', '', ''];
+    const correct = data ? data.correctIndex : 0;
     const block = document.createElement('div');
     block.className = 'builder-round';
     block.dataset.round = String(n);
     block.innerHTML =
       `<h3>Manche ${n}</h3>` +
-      `<label>Lien YouTube (ou ID)</label><input class="r-yt" placeholder="https://youtu.be/..." />` +
+      `<label>Lien YouTube (ou ID)</label><input class="r-yt" placeholder="https://youtu.be/..." value="${escapeHtml(data ? data.youtube : '')}" />` +
       `<div style="display:flex; gap:10px;">` +
-      `<div style="flex:1"><label>Départ (s)</label><input class="r-start" type="number" min="0" value="0" /></div>` +
-      `<div style="flex:1"><label>Durée (s)</label><input class="r-dur" type="number" min="5" max="60" value="20" /></div></div>` +
-      `<label>Question posée aux joueurs</label><input class="r-q" placeholder="Quel est ce morceau ?" value="Quel est ce morceau ?" />` +
+      `<div style="flex:1"><label>Départ (s)</label><input class="r-start" type="number" min="0" value="${data ? data.startSeconds : 0}" /></div>` +
+      `<div style="flex:1"><label>Durée (s)</label><input class="r-dur" type="number" min="5" max="60" value="${data ? data.durationSeconds : 20}" /></div></div>` +
+      `<label>Question posée aux joueurs</label><input class="r-q" value="${escapeHtml(data ? data.question : 'Quel est ce morceau ?')}" />` +
       `<label>Propositions (coche la bonne réponse)</label>` +
       `<div class="r-options">` +
-      optionInput(n, 0, true) + optionInput(n, 1, false) +
-      optionInput(n, 2, false) + optionInput(n, 3, false) +
+      opts.map((val, i) => optionInput(n, i, val, i === correct)).join('') +
       `</div>` +
-      `<label>Réponse révélée (titre / artiste)</label><input class="r-answer" placeholder="Artiste — Titre (année)" />`;
+      `<label>Réponse révélée (titre / artiste)</label><input class="r-answer" placeholder="Artiste — Titre (année)" value="${escapeHtml(data ? data.answerLabel : '')}" />`;
     $('#builder-rounds').appendChild(block);
   }
 
-  function optionInput(n, i, checked) {
+  function optionInput(n, i, value, checked) {
     return (
       `<div class="option-input-row">` +
       `<input type="radio" name="correct-${n}" value="${i}" ${checked ? 'checked' : ''} />` +
-      `<input class="r-opt" placeholder="Proposition ${i + 1}" />` +
+      `<input class="r-opt" placeholder="Proposition ${i + 1}" value="${escapeHtml(value || '')}" />` +
       `</div>`
     );
+  }
+
+  function resetBuilder() {
+    state.editingQuizId = null;
+    $('#quiz-title').value = '';
+    $('#builder-rounds').innerHTML = '';
+    roundCount = 0;
+    addRoundBlock();
+    $('#save-quiz').textContent = '💾 Enregistrer le quiz';
+    $('#builder-heading').textContent = 'Nouveau quiz';
+  }
+
+  async function editQuiz(id) {
+    try {
+      const res = await fetch(`/api/quizzes/${id}`);
+      if (!res.ok) { toast('Impossible de charger la playlist.'); return; }
+      const quiz = await res.json();
+      state.editingQuizId = id;
+      $('#builder').style.display = 'block';
+      $('#builder-heading').textContent = `Modifier « ${quiz.title} »`;
+      $('#quiz-title').value = quiz.title;
+      $('#builder-rounds').innerHTML = '';
+      roundCount = 0;
+      quiz.rounds.forEach((r) => addRoundBlock({
+        youtube: r.youtubeId,
+        startSeconds: r.startSeconds,
+        durationSeconds: r.durationSeconds,
+        question: r.question,
+        options: r.options,
+        correctIndex: r.correctIndex,
+        answerLabel: r.answerLabel,
+      }));
+      $('#save-quiz').textContent = '💾 Mettre à jour';
+      $('#builder').scrollIntoView({ behavior: 'smooth' });
+    } catch (_) { toast('Erreur réseau.'); }
+  }
+
+  async function deleteQuiz(id, title) {
+    if (!window.confirm(`Supprimer la playlist « ${title} » ? Cette action est définitive.`)) return;
+    try {
+      const res = await fetch(`/api/quizzes/${id}`, { method: 'DELETE' });
+      if (!res.ok) { toast('Suppression impossible.'); return; }
+      toast('Playlist supprimée.');
+      await loadQuizzes();
+    } catch (_) { toast('Erreur réseau.'); }
   }
 
   async function saveQuiz() {
@@ -187,21 +254,19 @@
       });
     }
     if (rounds.length === 0) { toast('Ajoute au moins une manche.'); return; }
+    const editingId = state.editingQuizId;
     const btn = $('#save-quiz');
     btn.disabled = true;
     try {
-      const res = await fetch('/api/quizzes', {
-        method: 'POST',
+      const res = await fetch(editingId ? `/api/quizzes/${editingId}` : '/api/quizzes', {
+        method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, rounds }),
       });
       if (!res.ok) { toast('Quiz invalide : vérifie les liens, propositions et réponses.'); return; }
-      toast('Quiz enregistré !');
+      toast(editingId ? 'Playlist mise à jour !' : 'Quiz enregistré !');
       $('#builder').style.display = 'none';
-      $('#quiz-title').value = '';
-      $('#builder-rounds').innerHTML = '';
-      roundCount = 0;
-      addRoundBlock();
+      resetBuilder();
       await loadQuizzes();
     } catch (_) {
       toast('Erreur réseau.');
@@ -330,8 +395,12 @@
   // --- Contrôles ----------------------------------------------------------
   $('#toggle-builder').onclick = () => {
     const b = $('#builder');
-    b.style.display = b.style.display === 'none' ? 'block' : 'none';
-    if (b.style.display === 'block' && $$('.builder-round').length === 0) addRoundBlock();
+    if (b.style.display === 'none' || b.style.display === '') {
+      resetBuilder();
+      b.style.display = 'block';
+    } else {
+      b.style.display = 'none';
+    }
   };
   $('#add-round').onclick = addRoundBlock;
   $('#save-quiz').onclick = saveQuiz;
