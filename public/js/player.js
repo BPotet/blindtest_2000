@@ -3,7 +3,35 @@
   const { $, $$, show, escapeHtml, OPTION_SHAPES, toast, renderLeaderboard } = window.App;
   const socket = io();
 
-  const state = { code: null, playerId: null, answered: false, lastChoice: null };
+  const state = { code: null, playerId: null, answered: false, lastChoice: null, timer: null };
+
+  // --- Minuteur visible (compte à rebours côté joueur) --------------------
+  function startTimer(total) {
+    clearInterval(state.timer);
+    let remaining = total;
+    updateTimer(remaining, total);
+    state.timer = setInterval(() => {
+      remaining -= 1;
+      updateTimer(remaining, total);
+      if (remaining <= 0) {
+        clearInterval(state.timer);
+        onTimeout();
+      }
+    }, 1000);
+  }
+  function updateTimer(remaining, total) {
+    const t = $('#q-timer');
+    if (t) t.textContent = Math.max(0, remaining);
+    const bar = $('#q-bar');
+    if (bar) bar.style.width = `${Math.max(0, (remaining / total) * 100)}%`;
+  }
+  function stopTimer() { clearInterval(state.timer); }
+  function onTimeout() {
+    if (state.answered) return;
+    state.answered = true;
+    $$('#q-options .option').forEach((b) => { b.disabled = true; });
+    $('#q-status').textContent = '⏱️ Temps écoulé !';
+  }
 
   // Pré-remplissage du code depuis l'URL (QR code -> /join?code=XXXXX).
   const params = new URLSearchParams(location.search);
@@ -52,6 +80,7 @@
     $('#q-text').textContent = pr.question;
     $('#q-status').textContent = 'À toi de jouer !';
     renderOptions(pr.options);
+    startTimer(pr.durationSeconds);
   }
 
   // --- Événements Socket --------------------------------------------------
@@ -88,6 +117,7 @@
   socket.on('player:answerRejected', (p) => toast(p.reason || 'Réponse refusée.'));
 
   socket.on('round:result', (p) => {
+    stopTimer();
     const mine = state.playerId ? p.results[state.playerId] : null;
     show('screen-feedback');
     const banner = $('#feedback-banner');
