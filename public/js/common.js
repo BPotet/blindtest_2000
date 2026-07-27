@@ -70,5 +70,131 @@
     });
   }
 
-  window.App = { $, $$, show, escapeHtml, OPTION_SHAPES, toast, renderLeaderboard, renderDistribution };
+  // --- Sons (Web Audio, aucun fichier) ------------------------------------
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  let actx = null;
+  function ctx() {
+    if (!AudioCtx) return null;
+    if (!actx) actx = new AudioCtx();
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+  }
+  function beep(freq, dur, type, gain, when) {
+    const c = ctx();
+    if (!c || !Sound.enabled) return;
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = type || 'sine';
+    o.frequency.value = freq;
+    o.connect(g); g.connect(c.destination);
+    const t = c.currentTime + (when || 0);
+    g.gain.setValueAtTime(gain || 0.12, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.start(t); o.stop(t + dur);
+  }
+  const Sound = {
+    enabled: localStorage.getItem('bt_muted') !== '1',
+    tick() { beep(620, 0.12, 'square', 0.07); },
+    go() { beep(940, 0.28, 'square', 0.11); },
+    correct() { beep(660, 0.14, 'sine', 0.14, 0); beep(990, 0.28, 'sine', 0.14, 0.12); },
+    wrong() { beep(160, 0.38, 'sawtooth', 0.11); },
+    reveal() { beep(440, 0.1, 'sine', 0.1, 0); beep(554, 0.1, 'sine', 0.1, 0.1); beep(659, 0.22, 'sine', 0.12, 0.2); },
+    fanfare() {
+      [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.3, 'triangle', 0.13, i * 0.14));
+    },
+  };
+  // Débloque l'audio au 1er geste utilisateur (politique navigateur).
+  window.addEventListener('pointerdown', () => { try { ctx(); } catch (_) {} }, { once: true });
+
+  function initMute() {
+    const btn = document.getElementById('mute-btn');
+    if (!btn) return;
+    const render = () => { btn.textContent = Sound.enabled ? '🔊' : '🔇'; };
+    render();
+    btn.onclick = () => {
+      Sound.enabled = !Sound.enabled;
+      localStorage.setItem('bt_muted', Sound.enabled ? '0' : '1');
+      if (Sound.enabled) Sound.tick();
+      render();
+    };
+  }
+
+  // --- Décompte « 3·2·1 » plein écran -------------------------------------
+  function playCountdown(seconds, onDone) {
+    const overlay = document.createElement('div');
+    overlay.className = 'countdown-overlay';
+    document.body.appendChild(overlay);
+    let n = seconds;
+    const step = () => {
+      if (n > 0) {
+        overlay.innerHTML = `<div class="countdown-num">${n}</div>`;
+        Sound.tick();
+        n -= 1;
+        setTimeout(step, 1000);
+      } else {
+        overlay.innerHTML = '<div class="countdown-num go">GO&nbsp;!</div>';
+        Sound.go();
+        setTimeout(() => { overlay.remove(); if (onDone) onDone(); }, 650);
+      }
+    };
+    step();
+  }
+
+  // --- Confettis (canvas, sans dépendance) --------------------------------
+  function confetti(durationMs) {
+    const canvas = document.createElement('canvas');
+    canvas.className = 'confetti-canvas';
+    document.body.appendChild(canvas);
+    const g = canvas.getContext('2d');
+    let W, H;
+    const resize = () => { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; };
+    resize();
+    window.addEventListener('resize', resize);
+    const colors = ['#7c3aed', '#ec4899', '#22c55e', '#f59e0b', '#2563eb', '#e11d48'];
+    const parts = Array.from({ length: 160 }, () => ({
+      x: Math.random() * W, y: Math.random() * -H, r: 5 + Math.random() * 7,
+      c: colors[(Math.random() * colors.length) | 0], vy: 2 + Math.random() * 4,
+      vx: -2 + Math.random() * 4, rot: Math.random() * 6, vr: -0.2 + Math.random() * 0.4,
+    }));
+    const start = Date.now();
+    (function frame() {
+      g.clearRect(0, 0, W, H);
+      parts.forEach((p) => {
+        p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        g.save(); g.translate(p.x, p.y); g.rotate(p.rot);
+        g.fillStyle = p.c; g.fillRect(-p.r / 2, -p.r / 2, p.r, p.r); g.restore();
+        if (p.y > H + 20) { p.y = -10; p.x = Math.random() * W; }
+      });
+      if (Date.now() - start < (durationMs || 3500)) requestAnimationFrame(frame);
+      else { window.removeEventListener('resize', resize); canvas.remove(); }
+    })();
+  }
+
+  // --- Podium (top 3) -----------------------------------------------------
+  function renderPodium(container, entries, myId) {
+    const top = entries.slice(0, 3);
+    const order = [top[1], top[0], top[2]].filter(Boolean); // 2e, 1er, 3e
+    container.innerHTML = '';
+    const podium = document.createElement('div');
+    podium.className = 'podium';
+    order.forEach((e) => {
+      const medal = e.rank === 1 ? '🥇' : e.rank === 2 ? '🥈' : '🥉';
+      const col = document.createElement('div');
+      col.className = `podium-col rank-${e.rank}` + (e.playerId === myId ? ' me' : '');
+      col.innerHTML =
+        `<div class="podium-medal">${medal}</div>` +
+        `<div class="podium-name">${escapeHtml(e.pseudo)}</div>` +
+        `<div class="podium-bar"><span class="podium-rank">${e.rank}</span></div>` +
+        `<div class="podium-score">${e.score}</div>`;
+      podium.appendChild(col);
+    });
+    container.appendChild(podium);
+  }
+
+  initMute();
+
+  window.App = {
+    $, $$, show, escapeHtml, OPTION_SHAPES, toast, renderLeaderboard, renderDistribution,
+    Sound, playCountdown, confetti, renderPodium,
+  };
 })();

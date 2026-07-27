@@ -3,7 +3,7 @@
   const { $, $$, show, escapeHtml, OPTION_SHAPES, toast, renderLeaderboard } = window.App;
   const socket = io();
 
-  const state = { code: null, playerId: null, answered: false, lastChoice: null, timer: null };
+  const state = { code: null, playerId: null, answered: false, lastChoice: null, timer: null, awaiting: false };
 
   // --- Minuteur visible (compte à rebours côté joueur) --------------------
   function startTimer(total) {
@@ -62,8 +62,12 @@
       b.disabled = true;
       if (Number(b.dataset.i) !== i) b.classList.add('dimmed');
     });
-    btn.classList.add('chosen');
-    $('#q-status').textContent = 'Réponse envoyée ✓ En attente des autres…';
+    btn.classList.add('chosen', 'locked');
+    if (!btn.querySelector('.option-lock')) {
+      btn.insertAdjacentHTML('beforeend', '<span class="option-lock">🔒</span>');
+    }
+    window.App.Sound.tick();
+    $('#q-status').textContent = '🔒 Réponse verrouillée · en attente des autres…';
   }
 
   function lockOptions(message) {
@@ -75,6 +79,7 @@
   function enterQuestion(pr) {
     state.answered = false;
     state.lastChoice = null;
+    state.awaiting = false; // la manche est ouverte : ne plus clobberer les propositions
     show('screen-question');
     $('#q-progress').textContent = `Manche ${pr.roundIndex + 1} / ${pr.totalRounds}`;
     $('#q-text').textContent = pr.question;
@@ -125,6 +130,7 @@
     stopTimer();
     state.answered = false;
     state.lastChoice = null;
+    state.awaiting = true;
     show('screen-question');
     $('#q-progress').textContent = `Manche ${p.roundIndex + 1} / ${p.totalRounds}`;
     $('#q-timer').textContent = '…';
@@ -134,6 +140,21 @@
     $('#q-status').textContent = "L'extrait va démarrer…";
   });
 
+  // Décompte « 3·2·1 » synchronisé, puis on attend le vrai départ de l'extrait.
+  socket.on('player:countdown', () => {
+    state.awaiting = true;
+    window.App.playCountdown(3, () => {
+      // Si la manche s'est déjà ouverte pendant le décompte, ne rien écraser.
+      if (!state.awaiting) return;
+      show('screen-question');
+      $('#q-timer').textContent = '…';
+      $('#q-bar').style.width = '100%';
+      $('#q-text').textContent = '🎧 Écoute !';
+      $('#q-options').innerHTML = '';
+      $('#q-status').textContent = 'Prépare ta réponse…';
+    });
+  });
+
   socket.on('player:roundStarted', (p) => enterQuestion(p.publicRound));
 
   socket.on('player:answerRejected', (p) => toast(p.reason || 'Réponse refusée.'));
@@ -141,6 +162,7 @@
   socket.on('round:result', (p) => {
     stopTimer();
     const mine = state.playerId ? p.results[state.playerId] : null;
+    window.App.Sound[mine && mine.correct ? 'correct' : 'wrong']();
     show('screen-feedback');
     const banner = $('#feedback-banner');
     if (mine && mine.correct) {
@@ -179,7 +201,12 @@
     const me = leaderboard.find((e) => e.playerId === state.playerId);
     $('#final-rank').textContent = me ? `#${me.rank}` : '—';
     $('#final-score').textContent = me ? `${me.score} points` : '';
-    renderLeaderboard($('#final-board'), leaderboard, state.playerId);
+    window.App.renderPodium($('#player-podium'), leaderboard, state.playerId);
+    const rest = leaderboard.slice(3);
+    if (rest.length) renderLeaderboard($('#final-board'), rest, state.playerId);
+    else $('#final-board').innerHTML = '';
+    window.App.confetti();
+    window.App.Sound.fanfare();
     localStorage.removeItem('bt_player');
   }
 

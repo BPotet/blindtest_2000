@@ -359,6 +359,13 @@ function wireSockets(
       });
     });
 
+    // L'hôte lance le décompte « 3·2·1 » -> on le diffuse aux joueurs.
+    socket.on('host:beginCountdown', () => {
+      const room = getHostRoom(socket, roomManager);
+      if (!room) return;
+      socket.to(room.code).emit('player:countdown', { seconds: 3 });
+    });
+
     // L'hôte signale que l'extrait joue réellement -> on ouvre la manche.
     socket.on('host:clipStarted', () => {
       const room = getHostRoom(socket, roomManager);

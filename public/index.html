@@ -13,7 +13,8 @@
     <header class="brand">
       <span class="brand__logo">Blindtest 2000</span>
       <span class="brand__tag">écran de l'hôte</span>
-      <button id="logout-btn" class="btn btn--ghost" style="margin-left:auto; display:none;" aria-label="Se déconnecter">Se déconnecter</button>
+      <button id="mute-btn" class="icon-btn" style="margin-left:auto" aria-label="Activer ou couper le son">🔊</button>
+      <button id="logout-btn" class="btn btn--ghost" style="display:none;" aria-label="Se déconnecter">Se déconnecter</button>
     </header>
 
     <!-- Connexion hôte -->
@@ -126,6 +127,7 @@
     <section id="screen-ended" class="screen">
       <div class="card center">
         <h1>🏆 Partie terminée !</h1>
+        <div id="final-podium"></div>
         <div class="leaderboard" id="final-leaderboard" style="margin-top:16px;"></div>
         <div class="btn-row" style="margin-top:24px;">
           <button onclick="location.href='/'" class="btn btn--lg">🔁 Nouvelle partie</button>

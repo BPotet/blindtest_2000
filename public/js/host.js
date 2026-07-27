@@ -24,9 +24,8 @@
     state.ytReady = true;
   };
 
-  // Charge la vidéo mais NE démarre PAS le minuteur : il ne partira qu'au vrai
-  // début de lecture (onClipStarted), pour ne pas voler de secondes aux joueurs.
-  function loadClip() {
+  // Précharge (cue) la vidéo sans la jouer, pendant le décompte « 3·2·1 ».
+  function cueClip() {
     const r = state.round;
     clearInterval(state.timer);
     $('#round-timer').textContent = '…';
@@ -36,23 +35,30 @@
         if (!state.yt) {
           state.yt = new YT.Player('yt-player', {
             videoId: r.youtubeId,
-            playerVars: { start: r.startSeconds, autoplay: 1, controls: 1, rel: 0, modestbranding: 1 },
+            playerVars: { start: r.startSeconds, autoplay: 0, controls: 1, rel: 0, modestbranding: 1 },
             events: {
-              onReady: (e) => { try { e.target.seekTo(state.round.startSeconds, true); e.target.playVideo(); } catch (_) {} },
               onStateChange: (e) => { if (e.data === 1) onClipStarted(); }, // 1 = PLAYING
               onError: () => onClipStarted(),
             },
           });
         } else {
-          state.yt.loadVideoById({ videoId: r.youtubeId, startSeconds: r.startSeconds });
-          state.yt.playVideo();
+          state.yt.cueVideoById({ videoId: r.youtubeId, startSeconds: r.startSeconds });
         }
-      } catch (_) { onClipStarted(); }
-    } else {
-      // Pas de lecteur YouTube disponible : on démarre quand même.
-      setTimeout(onClipStarted, 400);
+      } catch (_) { /* on jouera sans vidéo */ }
     }
-    // Sécurité : si la vidéo ne démarre jamais (bloquée, autoplay refusé…), on
+  }
+
+  // Joue l'extrait à la fin du décompte. Le minuteur ne partira qu'au vrai début
+  // de lecture (onClipStarted), pour ne pas voler de secondes aux joueurs.
+  function playCuedClip() {
+    const r = state.round;
+    if (state.ytReady && state.yt) {
+      try { state.yt.seekTo(r.startSeconds, true); state.yt.playVideo(); }
+      catch (_) { onClipStarted(); }
+    } else {
+      onClipStarted(); // pas de lecteur YouTube -> on ouvre la manche directement
+    }
+    // Sécurité : si la lecture ne démarre jamais (bloquée, autoplay refusé…), on
     // ouvre la manche après 12 s pour ne pas rester coincé.
     clearTimeout(state.clipFallback);
     state.clipFallback = setTimeout(onClipStarted, 12000);
@@ -382,7 +388,10 @@
       enterLobby(p.quizTitle, p.players);
     } else if (p.state === 'ended') {
       show('screen-ended');
-      renderLeaderboard($('#final-leaderboard'), p.leaderboard, null);
+      window.App.renderPodium($('#final-podium'), p.leaderboard, null);
+      const rest = p.leaderboard.slice(3);
+      if (rest.length) renderLeaderboard($('#final-leaderboard'), rest, null);
+      else $('#final-leaderboard').innerHTML = '';
     } else {
       // En pleine partie : on montre le classement, l'hôte relance la manche suivante.
       show('screen-result');
@@ -404,7 +413,10 @@
     $('#answer-count').textContent = `0 / ${p.playerCount}`;
     $('#reveal-answer').disabled = false;
     renderHostOptions(p.hostRound.options);
-    loadClip();
+    // Précharge la vidéo, lance le décompte 3·2·1 (hôte + joueurs), puis joue.
+    cueClip();
+    socket.emit('host:beginCountdown');
+    window.App.playCountdown(3, playCuedClip);
   });
 
   socket.on('host:answerUpdate', (p) => {
@@ -421,6 +433,7 @@
     });
     setTimeout(() => {
       show('screen-result');
+      window.App.Sound.reveal();
       $('#result-answer').textContent = p.answerLabel;
       window.App.renderDistribution($('#result-distribution'), {
         options: p.options,
@@ -435,7 +448,12 @@
 
   socket.on('game:ended', (p) => {
     show('screen-ended');
-    renderLeaderboard($('#final-leaderboard'), p.leaderboard, null);
+    window.App.renderPodium($('#final-podium'), p.leaderboard, null);
+    const rest = p.leaderboard.slice(3);
+    if (rest.length) renderLeaderboard($('#final-leaderboard'), rest, null);
+    else $('#final-leaderboard').innerHTML = '';
+    window.App.confetti();
+    window.App.Sound.fanfare();
     localStorage.removeItem('bt_host');
   });
 
