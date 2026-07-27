@@ -27,8 +27,11 @@ inclus et ce qui viendra ensuite.
 - **Nombre de joueurs illimité** : aucune limite artificielle.
 - **Reconnexion** : recharger la page ou perdre le réseau ne fait pas perdre son
   score ni sa place.
-- **Quiz de démonstration** livrés d'origine + **création de ses propres quiz**
-  depuis l'interface.
+- **Quiz de démonstration** livrés d'origine + **création, édition et
+  suppression** de ses propres playlists depuis l'interface.
+- **Récap de fin de manche** : répartition des votes par proposition (façon
+  Kahoot) et nombre de joueurs ayant trouvé.
+- **Minuteur visible** côté hôte **et** côté joueur (compte à rebours + barre).
 
 ---
 
@@ -106,7 +109,23 @@ npm run typecheck # vérification TypeScript
   cumulé, reconnexion, isolation des salles).
 - **Intégration** : une partie complète jouée via de vrais clients Socket.IO
   (création de salle, arrivée de 2 joueurs, réponses, scoring serveur, classement,
-  isolation de deux salles simultanées).
+  isolation de deux salles simultanées), l'authentification hôte et le CRUD des
+  playlists (HTTP).
+- **Charge** : `src/load.test.ts` fait jouer **40 joueurs simultanés** sur une
+  manche complète et vérifie le classement.
+
+### Test de charge sur une instance en ligne
+
+Un script autonome simule N joueurs sur n'importe quelle URL (local ou Render) :
+
+```bash
+node scripts/loadtest.mjs http://localhost:3000 40
+node scripts/loadtest.mjs https://blindtest-2000.onrender.com 50
+# Identifiants hôte via ADMIN_USERNAME / ADMIN_PASSWORD (défaut admin/admin)
+```
+
+Il ouvre une salle, y connecte N joueurs, joue une manche et affiche les
+latences (min / moyenne / p95 / max) et le temps total.
 
 ---
 
