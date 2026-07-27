@@ -1,10 +1,13 @@
 import { buildServer } from './server';
 import { createQuizRepository, MemoryQuizStore, type QuizRepository } from './game/store';
+import { loadAuthConfig, hashPassword } from './auth';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? '0.0.0.0';
 
 async function main(): Promise<void> {
+  const authConfig = loadAuthConfig();
+
   let quizRepo: QuizRepository = await createQuizRepository();
   try {
     await quizRepo.init();
@@ -21,7 +24,11 @@ async function main(): Promise<void> {
     await quizRepo.init();
   }
 
-  const { httpServer } = buildServer({ quizRepo });
+  // Compte admin : créé/mis à jour depuis l'environnement à chaque démarrage.
+  await quizRepo.upsertUser(authConfig.adminUsername, hashPassword(authConfig.adminPassword));
+  console.log(`Compte hôte : « ${authConfig.adminUsername} ».`);
+
+  const { httpServer } = buildServer({ quizRepo, authConfig });
   httpServer.listen(PORT, HOST, () => {
     console.log(`Blindtest 2000 en écoute sur http://${HOST}:${PORT}`);
   });

@@ -10,6 +10,7 @@ export const DEMO_QUIZZES: Quiz[] = [
   {
     id: 'demo-tubes',
     title: 'Tubes intemporels',
+    ownerId: null,
     rounds: [
       {
         id: 'r1',
@@ -81,6 +82,7 @@ export const DEMO_QUIZZES: Quiz[] = [
   {
     id: 'demo-80s',
     title: 'Spécial années 80',
+    ownerId: null,
     rounds: [
       {
         id: 'r1',

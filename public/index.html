@@ -13,10 +13,25 @@
     <header class="brand">
       <span class="brand__logo">Blindtest 2000</span>
       <span class="brand__tag">écran de l'hôte</span>
+      <button id="logout-btn" class="btn btn--ghost" style="margin-left:auto; display:none;" aria-label="Se déconnecter">Se déconnecter</button>
     </header>
 
+    <!-- Connexion hôte -->
+    <section id="screen-login" class="screen screen--active">
+      <div class="card" style="max-width:440px; margin:24px auto;">
+        <h1>Connexion hôte</h1>
+        <p class="muted">Cet espace est réservé à l'organisateur du blindtest.</p>
+        <label for="login-username">Identifiant</label>
+        <input id="login-username" autocomplete="username" placeholder="admin" />
+        <label for="login-password">Mot de passe</label>
+        <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••••" />
+        <div class="field-error" id="login-error"></div>
+        <button id="login-btn" class="btn btn--lg" style="margin-top:12px;">Se connecter</button>
+      </div>
+    </section>
+
     <!-- Accueil : choix / création de quiz -->
-    <section id="screen-home" class="screen screen--active">
+    <section id="screen-home" class="screen">
       <div class="card">
         <h1>Lance un blindtest</h1>
         <p class="muted">Choisis un quiz, ouvre une salle, et laisse tes amis rejoindre depuis leur téléphone.</p>

@@ -74,6 +74,24 @@ Aucune base de données ni service externe n'est nécessaire pour cette v1.
 
 ---
 
+## 🔐 Accès hôte (login)
+
+L'écran de l'hôte est protégé par un **login + mot de passe** (compte `admin`).
+Les joueurs, eux, rejoignent **sans compte**. Configure via variables d'env :
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `ADMIN_USERNAME` | Identifiant de l'hôte | `admin` |
+| `ADMIN_PASSWORD` | Mot de passe de l'hôte (haché avec scrypt) | `admin` ⚠️ à changer |
+| `SESSION_SECRET` | Secret de signature des sessions (cookie) | aléatoire par démarrage |
+
+> Sur Render : **Environment** → ajoute `ADMIN_PASSWORD` et `SESSION_SECRET`
+> (chaîne aléatoire longue et stable, sinon tu es déconnecté à chaque
+> redéploiement). Le compte admin est (ré)appliqué à chaque démarrage, donc
+> changer `ADMIN_PASSWORD` puis redéployer met à jour le mot de passe. Les
+> playlists que tu crées sont **rattachées à ton compte** ; les démos restent
+> visibles par tous.
+
 ## 🧪 Tests
 
 Pyramide de tests (rapide, sans dépendance externe) :
@@ -101,7 +119,7 @@ suite**. Choix assumés pour y arriver vite et de façon fiable :
 |---|---|---|
 | **Lecture des extraits** | Lecteur **YouTube embarqué** sur l'écran de l'hôte (seek + play sur l'extrait). Pas d'extraction de fichier audio. | Extraction serveur (yt-dlp/ffmpeg) + stockage R2, en secours l'upload manuel — comme prévu dans les specs. |
 | **Stockage** | Playlists **persistées dans PostgreSQL** si `DATABASE_URL` est défini (sinon en mémoire). L'état des parties en cours reste en mémoire (une partie est éphémère). | Idem + comptes hôte ; migrations Drizzle. |
-| **Comptes hôte** | Pas d'authentification — on lance une partie directement. | `better-auth` (comptes hôte, connexion) tel que spécifié. |
+| **Comptes hôte** | **Login + mot de passe** (compte `admin` unique via variables d'env), sessions par cookie signé ; les playlists sont **rattachées à l'utilisateur**. | Plusieurs comptes / inscription ; migration vers `better-auth`. |
 | **Serveur** | Node + Express + Socket.IO, un seul service. | Fastify + adaptateur Redis Socket.IO pour le multi-instances. |
 
 > 💾 **Persistance des playlists** : définis `DATABASE_URL` (PostgreSQL — p. ex.

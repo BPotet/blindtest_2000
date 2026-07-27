@@ -1,7 +1,9 @@
 /* global io, YT */
 (function () {
   const { $, $$, show, escapeHtml, OPTION_SHAPES, toast, renderLeaderboard } = window.App;
-  const socket = io();
+  // Le socket ne se connecte qu'après login, pour que le handshake porte le
+  // cookie de session (l'auth de l'hôte est vérifiée côté serveur au handshake).
+  const socket = io({ autoConnect: false });
 
   const state = {
     code: null,
@@ -11,6 +13,7 @@
     yt: null,
     ytReady: false,
     lastResults: null,
+    authed: false,
   };
 
   // --- API YouTube IFrame -------------------------------------------------
@@ -85,6 +88,52 @@
     } catch (_) {
       $('#quiz-list').innerHTML = '<p class="muted">Impossible de charger les quiz.</p>';
     }
+  }
+
+  // --- Authentification ---------------------------------------------------
+  async function checkAuth() {
+    try {
+      const res = await fetch('/api/me');
+      if (res.ok) { onAuthed(); return; }
+    } catch (_) { /* réseau : on montre le login */ }
+    show('screen-login');
+  }
+
+  function onAuthed() {
+    state.authed = true;
+    $('#logout-btn').style.display = '';
+    show('screen-home');
+    loadQuizzes();
+    socket.connect(); // le handshake porte désormais le cookie de session
+  }
+
+  async function doLogin() {
+    const username = $('#login-username').value.trim();
+    const password = $('#login-password').value;
+    $('#login-error').textContent = '';
+    if (!username || !password) { $('#login-error').textContent = 'Identifiant et mot de passe requis.'; return; }
+    const btn = $('#login-btn');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      if (!res.ok) { $('#login-error').textContent = 'Identifiant ou mot de passe incorrect.'; return; }
+      $('#login-password').value = '';
+      onAuthed();
+    } catch (_) {
+      $('#login-error').textContent = 'Erreur réseau.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function doLogout() {
+    try { await fetch('/api/logout', { method: 'POST' }); } catch (_) {}
+    localStorage.removeItem('bt_host');
+    location.reload();
   }
 
   // --- Constructeur de quiz ----------------------------------------------
@@ -284,9 +333,13 @@
   $('#reveal-answer').onclick = () => { $('#reveal-answer').disabled = true; stopClip(); socket.emit('host:endRound'); };
   $('#next-round').onclick = () => socket.emit('host:startRound');
   $('#end-game').onclick = () => socket.emit('host:endGame');
+  $('#login-btn').onclick = doLogin;
+  $('#login-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+  $('#logout-btn').onclick = doLogout;
 
   // --- Reprise après rechargement ----------------------------------------
   function tryReconnect() {
+    if (!state.authed) return;
     const raw = localStorage.getItem('bt_host');
     if (!raw) return;
     try {
@@ -298,6 +351,6 @@
     } catch (_) { localStorage.removeItem('bt_host'); }
   }
 
-  loadQuizzes();
+  checkAuth();
   socket.on('connect', tryReconnect);
 })();

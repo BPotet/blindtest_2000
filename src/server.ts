@@ -1,12 +1,12 @@
 import { createServer, type Server as HttpServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import express, { type Express } from 'express';
+import express, { type Express, type RequestHandler, type Request } from 'express';
 import { Server as IOServer, type Socket } from 'socket.io';
 import QRCode from 'qrcode';
 import { ZodError } from 'zod';
 
-import { MemoryQuizStore, type QuizRepository } from './game/store';
+import { MemoryQuizStore, canAccessQuiz, type QuizRepository } from './game/store';
 import { RoomManager, type Room } from './game/room';
 import {
   createRoomSchema,
@@ -16,6 +16,17 @@ import {
   answerSchema,
   createQuizSchema,
 } from './validation';
+import {
+  loadAuthConfig,
+  verifyPassword,
+  verifySession,
+  createSession,
+  parseCookies,
+  buildSessionCookie,
+  clearSessionCookie,
+  SESSION_COOKIE,
+  type AuthConfig,
+} from './auth';
 import type { PublicRound } from './types';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,6 +37,7 @@ interface SocketData {
   role?: 'host' | 'player';
   code?: string;
   playerId?: string;
+  userId?: string;
 }
 
 export interface BuiltServer {
@@ -40,12 +52,30 @@ export interface BuiltServer {
  * Construit l'application (HTTP + WebSocket) sans démarrer l'écoute.
  * `quizRepo` peut être injecté (Postgres en prod) ; par défaut, stockage mémoire.
  */
-export function buildServer(opts: { quizRepo?: QuizRepository } = {}): BuiltServer {
+export function buildServer(
+  opts: { quizRepo?: QuizRepository; authConfig?: AuthConfig } = {},
+): BuiltServer {
   const app = express();
   app.use(express.json({ limit: '256kb' }));
 
   const quizRepo = opts.quizRepo ?? new MemoryQuizStore();
+  const authConfig = opts.authConfig ?? loadAuthConfig();
   const roomManager = new RoomManager();
+
+  const sessionUserId = (req: Request): string | null => {
+    const cookies = parseCookies(req.headers.cookie);
+    return verifySession(cookies[SESSION_COOKIE], authConfig.sessionSecret)?.uid ?? null;
+  };
+
+  const requireAuth: RequestHandler = (req, res, next) => {
+    const uid = sessionUserId(req);
+    if (!uid) {
+      res.status(401).json({ error: 'unauthenticated' });
+      return;
+    }
+    res.locals.userId = uid;
+    next();
+  };
 
   // ---- Routes HTTP ------------------------------------------------------
 
@@ -53,15 +83,47 @@ export function buildServer(opts: { quizRepo?: QuizRepository } = {}): BuiltServ
     res.json({ status: 'ok', rooms: roomManager.size, uptime: process.uptime() });
   });
 
-  app.get('/api/quizzes', async (_req, res) => {
+  // ---- Authentification -------------------------------------------------
+
+  app.post('/api/login', async (req, res) => {
+    const username = typeof req.body?.username === 'string' ? req.body.username : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    const user = await quizRepo.getUserByUsername(username);
+    if (!user || !verifyPassword(password, user.passwordHash)) {
+      res.status(401).json({ error: 'invalid_credentials' });
+      return;
+    }
+    res.setHeader(
+      'Set-Cookie',
+      buildSessionCookie(createSession(user.id, authConfig.sessionSecret), authConfig),
+    );
+    res.json({ username: user.username });
+  });
+
+  app.post('/api/logout', (_req, res) => {
+    res.setHeader('Set-Cookie', clearSessionCookie(authConfig));
+    res.json({ ok: true });
+  });
+
+  app.get('/api/me', async (req, res) => {
+    const uid = sessionUserId(req);
+    const user = uid ? await quizRepo.getUserById(uid) : undefined;
+    if (!user) {
+      res.status(401).json({ error: 'unauthenticated' });
+      return;
+    }
+    res.json({ username: user.username });
+  });
+
+  app.get('/api/quizzes', requireAuth, async (_req, res) => {
     try {
-      res.json({ quizzes: await quizRepo.list() });
+      res.json({ quizzes: await quizRepo.list(res.locals.userId as string) });
     } catch {
       res.status(500).json({ error: 'server_error' });
     }
   });
 
-  app.post('/api/quizzes', async (req, res) => {
+  app.post('/api/quizzes', requireAuth, async (req, res) => {
     try {
       const input = createQuizSchema.parse(req.body);
       const rounds = input.rounds.map((r) => ({
@@ -73,7 +135,7 @@ export function buildServer(opts: { quizRepo?: QuizRepository } = {}): BuiltServ
         correctIndex: r.correctIndex,
         answerLabel: r.answerLabel,
       }));
-      const quiz = await quizRepo.create(input.title, rounds);
+      const quiz = await quizRepo.create(res.locals.userId as string, input.title, rounds);
       res.status(201).json({ id: quiz.id, title: quiz.title, roundCount: quiz.rounds.length });
     } catch (err) {
       if (err instanceof ZodError) {
@@ -121,7 +183,7 @@ export function buildServer(opts: { quizRepo?: QuizRepository } = {}): BuiltServ
   const httpServer = createServer(app);
   const io = new IOServer(httpServer);
 
-  wireSockets(io, quizRepo, roomManager);
+  wireSockets(io, quizRepo, roomManager, authConfig);
 
   // Nettoyage périodique des salles inactives/terminées.
   const pruneTimer = setInterval(() => roomManager.pruneStale(ROOM_IDLE_MS), 15 * 60 * 1000);
@@ -154,13 +216,23 @@ function toPublicRound(room: Room): PublicRound | null {
   };
 }
 
-function wireSockets(io: IOServer, quizRepo: QuizRepository, roomManager: RoomManager): void {
+function wireSockets(
+  io: IOServer,
+  quizRepo: QuizRepository,
+  roomManager: RoomManager,
+  authConfig: AuthConfig,
+): void {
   io.on('connection', (socket: Socket) => {
     const data = socket.data as SocketData;
 
     // ---- Hôte ----------------------------------------------------------
 
     socket.on('host:createRoom', async (payload: unknown) => {
+      const uid = socketUserId(socket, authConfig);
+      if (!uid) {
+        socket.emit('host:error', { message: 'Connecte-toi pour lancer une partie.', fatal: true });
+        return;
+      }
       const parsed = createRoomSchema.safeParse(payload);
       if (!parsed.success) {
         socket.emit('host:error', { message: 'Requête invalide.' });
@@ -171,6 +243,11 @@ function wireSockets(io: IOServer, quizRepo: QuizRepository, roomManager: RoomMa
         socket.emit('host:error', { message: 'Quiz introuvable.' });
         return;
       }
+      if (!canAccessQuiz(quiz, uid)) {
+        socket.emit('host:error', { message: "Cette playlist ne t'appartient pas." });
+        return;
+      }
+      data.userId = uid;
       const room = roomManager.create(quiz);
       room.hostSocketId = socket.id;
       data.role = 'host';
@@ -358,6 +435,11 @@ function wireSockets(io: IOServer, quizRepo: QuizRepository, roomManager: RoomMa
       }
     });
   });
+}
+
+function socketUserId(socket: Socket, authConfig: AuthConfig): string | null {
+  const cookies = parseCookies(socket.handshake.headers.cookie);
+  return verifySession(cookies[SESSION_COOKIE], authConfig.sessionSecret)?.uid ?? null;
 }
 
 function getHostRoom(socket: Socket, roomManager: RoomManager): Room | null {

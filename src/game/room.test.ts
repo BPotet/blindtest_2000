@@ -7,6 +7,7 @@ function makeQuiz(): Quiz {
   return {
     id: 'q1',
     title: 'Test',
+    ownerId: null,
     rounds: [
       {
         id: 'r1',

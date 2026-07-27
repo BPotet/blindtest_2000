@@ -9,18 +9,32 @@ export interface QuizSummary {
   isDemo: boolean;
 }
 
+export interface User {
+  id: string;
+  username: string;
+  passwordHash: string;
+}
+
 /**
- * Stockage des quiz. Deux implémentations :
+ * Stockage des quiz et des utilisateurs. Deux implémentations :
  *  - `MemoryQuizStore` : en mémoire (dev local, tests, ou secours).
- *  - `PostgresQuizStore` : persistant (playlists conservées entre redéploiements).
+ *  - `PostgresQuizStore` : persistant (playlists + comptes conservés).
  * La fabrique `createQuizRepository()` choisit selon la présence de DATABASE_URL.
  */
 export interface QuizRepository {
-  /** Prépare le stockage (création de table + seed des démos si nécessaire). */
+  /** Prépare le stockage (tables + seed des démos si nécessaire). */
   init(): Promise<void>;
-  list(): Promise<QuizSummary[]>;
+
+  // Utilisateurs
+  upsertUser(username: string, passwordHash: string): Promise<User>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserById(id: string): Promise<User | undefined>;
+
+  // Quiz — `ownerId` est celui de l'utilisateur connecté ; les démos (ownerId null)
+  // restent visibles par tous.
+  list(ownerId: string): Promise<QuizSummary[]>;
   get(id: string): Promise<Quiz | undefined>;
-  create(title: string, rounds: Array<Omit<Round, 'id'>>): Promise<Quiz>;
+  create(ownerId: string, title: string, rounds: Array<Omit<Round, 'id'>>): Promise<Quiz>;
 }
 
 /** Ajoute des identifiants de manche déterministes (r1, r2, …). */
@@ -28,37 +42,62 @@ export function withRoundIds(rounds: Array<Omit<Round, 'id'>>): Round[] {
   return rounds.map((round, index) => ({ ...round, id: `r${index + 1}` }));
 }
 
+/** Un quiz est accessible si c'est une démo ou s'il appartient à l'utilisateur. */
+export function canAccessQuiz(quiz: Quiz, ownerId: string): boolean {
+  return quiz.ownerId === null || quiz.ownerId === ownerId;
+}
+
 /** Implémentation en mémoire — les quiz de démo sont présents dès la construction. */
 export class MemoryQuizStore implements QuizRepository {
   private readonly quizzes = new Map<string, Quiz>();
-  private readonly demoIds = new Set<string>();
+  private readonly usersByName = new Map<string, User>();
+  private readonly usersById = new Map<string, User>();
 
   constructor() {
-    for (const quiz of cloneDemoQuizzes()) {
-      this.quizzes.set(quiz.id, quiz);
-      this.demoIds.add(quiz.id);
-    }
+    for (const quiz of cloneDemoQuizzes()) this.quizzes.set(quiz.id, quiz);
   }
 
   async init(): Promise<void> {
     /* rien à faire : les démos sont chargées dans le constructeur */
   }
 
-  async list(): Promise<QuizSummary[]> {
-    return [...this.quizzes.values()].map((quiz) => ({
-      id: quiz.id,
-      title: quiz.title,
-      roundCount: quiz.rounds.length,
-      isDemo: this.demoIds.has(quiz.id),
-    }));
+  async upsertUser(username: string, passwordHash: string): Promise<User> {
+    const existing = this.usersByName.get(username.toLowerCase());
+    if (existing) {
+      existing.passwordHash = passwordHash;
+      return existing;
+    }
+    const user: User = { id: generateId('u'), username, passwordHash };
+    this.usersByName.set(username.toLowerCase(), user);
+    this.usersById.set(user.id, user);
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return this.usersByName.get(username.toLowerCase());
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    return this.usersById.get(id);
+  }
+
+  async list(ownerId: string): Promise<QuizSummary[]> {
+    return [...this.quizzes.values()]
+      .filter((quiz) => quiz.ownerId === null || quiz.ownerId === ownerId)
+      .map((quiz) => ({
+        id: quiz.id,
+        title: quiz.title,
+        roundCount: quiz.rounds.length,
+        isDemo: quiz.ownerId === null,
+      }));
   }
 
   async get(id: string): Promise<Quiz | undefined> {
     return this.quizzes.get(id);
   }
 
-  async create(title: string, rounds: Array<Omit<Round, 'id'>>): Promise<Quiz> {
-    const quiz: Quiz = { id: generateId('quiz'), title, rounds: withRoundIds(rounds) };
+  async create(ownerId: string, title: string, rounds: Array<Omit<Round, 'id'>>): Promise<Quiz> {
+    const quiz: Quiz = { id: generateId('quiz'), title, ownerId, rounds: withRoundIds(rounds) };
     this.quizzes.set(quiz.id, quiz);
     return quiz;
   }

@@ -2,7 +2,7 @@ import pg from 'pg';
 import type { Quiz, Round } from '../types';
 import { cloneDemoQuizzes } from './quizzes';
 import { generateId } from './codes';
-import { withRoundIds, type QuizRepository, type QuizSummary } from './store';
+import { withRoundIds, type QuizRepository, type QuizSummary, type User } from './store';
 
 const { Pool } = pg;
 
@@ -14,9 +14,8 @@ function needsSsl(url: string): boolean {
 }
 
 /**
- * Stockage persistant des quiz dans Postgres. Les manches sont stockées en JSONB
- * (structure imbriquée simple) — pas de table séparée ni de jointure. Les quiz de
- * démo sont ré-injectés à chaque `init()` pour rester à jour.
+ * Stockage persistant des quiz et des utilisateurs dans Postgres. Les manches
+ * sont stockées en JSONB. Les quiz de démo sont ré-injectés à chaque `init()`.
  */
 export class PostgresQuizStore implements QuizRepository {
   private readonly pool: pg.Pool;
@@ -32,32 +31,75 @@ export class PostgresQuizStore implements QuizRepository {
 
   async init(): Promise<void> {
     await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id            text PRIMARY KEY,
+        username      text NOT NULL UNIQUE,
+        password_hash text NOT NULL,
+        created_at    timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await this.pool.query(`
       CREATE TABLE IF NOT EXISTS quizzes (
         id         text PRIMARY KEY,
         title      text NOT NULL,
         rounds     jsonb NOT NULL,
         is_demo    boolean NOT NULL DEFAULT false,
+        owner_id   text,
         created_at timestamptz NOT NULL DEFAULT now()
       )
     `);
+    // Migration douce si la table quizzes existait sans owner_id.
+    await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS owner_id text`);
     await this.seedDemos();
   }
 
   private async seedDemos(): Promise<void> {
     for (const quiz of cloneDemoQuizzes()) {
       await this.pool.query(
-        `INSERT INTO quizzes (id, title, rounds, is_demo)
-         VALUES ($1, $2, $3, true)
+        `INSERT INTO quizzes (id, title, rounds, is_demo, owner_id)
+         VALUES ($1, $2, $3, true, NULL)
          ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, rounds = EXCLUDED.rounds, is_demo = true`,
         [quiz.id, quiz.title, JSON.stringify(quiz.rounds)],
       );
     }
   }
 
-  async list(): Promise<QuizSummary[]> {
+  async upsertUser(username: string, passwordHash: string): Promise<User> {
+    const { rows } = await this.pool.query(
+      `INSERT INTO users (id, username, password_hash)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash
+       RETURNING id, username, password_hash`,
+      [generateId('u'), username, passwordHash],
+    );
+    const row = rows[0];
+    return { id: row.id, username: row.username, passwordHash: row.password_hash };
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const { rows } = await this.pool.query(
+      `SELECT id, username, password_hash FROM users WHERE lower(username) = lower($1)`,
+      [username],
+    );
+    if (rows.length === 0) return undefined;
+    return { id: rows[0].id, username: rows[0].username, passwordHash: rows[0].password_hash };
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    const { rows } = await this.pool.query(
+      `SELECT id, username, password_hash FROM users WHERE id = $1`,
+      [id],
+    );
+    if (rows.length === 0) return undefined;
+    return { id: rows[0].id, username: rows[0].username, passwordHash: rows[0].password_hash };
+  }
+
+  async list(ownerId: string): Promise<QuizSummary[]> {
     const { rows } = await this.pool.query(
       `SELECT id, title, jsonb_array_length(rounds) AS round_count, is_demo
-       FROM quizzes ORDER BY is_demo DESC, created_at ASC`,
+       FROM quizzes WHERE is_demo = true OR owner_id = $1
+       ORDER BY is_demo DESC, created_at ASC`,
+      [ownerId],
     );
     return rows.map((row) => ({
       id: row.id,
@@ -69,19 +111,24 @@ export class PostgresQuizStore implements QuizRepository {
 
   async get(id: string): Promise<Quiz | undefined> {
     const { rows } = await this.pool.query(
-      `SELECT id, title, rounds FROM quizzes WHERE id = $1`,
+      `SELECT id, title, rounds, owner_id FROM quizzes WHERE id = $1`,
       [id],
     );
     if (rows.length === 0) return undefined;
     const row = rows[0];
-    return { id: row.id, title: row.title, rounds: row.rounds as Round[] };
+    return {
+      id: row.id,
+      title: row.title,
+      rounds: row.rounds as Round[],
+      ownerId: row.owner_id ?? null,
+    };
   }
 
-  async create(title: string, rounds: Array<Omit<Round, 'id'>>): Promise<Quiz> {
-    const quiz: Quiz = { id: generateId('quiz'), title, rounds: withRoundIds(rounds) };
+  async create(ownerId: string, title: string, rounds: Array<Omit<Round, 'id'>>): Promise<Quiz> {
+    const quiz: Quiz = { id: generateId('quiz'), title, ownerId, rounds: withRoundIds(rounds) };
     await this.pool.query(
-      `INSERT INTO quizzes (id, title, rounds, is_demo) VALUES ($1, $2, $3, false)`,
-      [quiz.id, quiz.title, JSON.stringify(quiz.rounds)],
+      `INSERT INTO quizzes (id, title, rounds, is_demo, owner_id) VALUES ($1, $2, $3, false, $4)`,
+      [quiz.id, quiz.title, JSON.stringify(quiz.rounds), ownerId],
     );
     return quiz;
   }

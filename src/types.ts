@@ -27,6 +27,8 @@ export interface Quiz {
   id: string;
   title: string;
   rounds: Round[];
+  /** Propriétaire du quiz ; null pour les quiz de démonstration (accessibles à tous). */
+  ownerId: string | null;
 }
 
 /** La vue d'une manche envoyée aux JOUEURS — sans la réponse ni la vidéo. */
