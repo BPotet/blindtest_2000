@@ -6,7 +6,7 @@ import { Server as IOServer, type Socket } from 'socket.io';
 import QRCode from 'qrcode';
 import { ZodError } from 'zod';
 
-import { QuizStore } from './game/store';
+import { MemoryQuizStore, type QuizRepository } from './game/store';
 import { RoomManager, type Room } from './game/room';
 import {
   createRoomSchema,
@@ -32,16 +32,19 @@ export interface BuiltServer {
   app: Express;
   httpServer: HttpServer;
   io: IOServer;
-  quizStore: QuizStore;
+  quizRepo: QuizRepository;
   roomManager: RoomManager;
 }
 
-/** Construit l'application (HTTP + WebSocket) sans démarrer l'écoute. */
-export function buildServer(): BuiltServer {
+/**
+ * Construit l'application (HTTP + WebSocket) sans démarrer l'écoute.
+ * `quizRepo` peut être injecté (Postgres en prod) ; par défaut, stockage mémoire.
+ */
+export function buildServer(opts: { quizRepo?: QuizRepository } = {}): BuiltServer {
   const app = express();
   app.use(express.json({ limit: '256kb' }));
 
-  const quizStore = new QuizStore();
+  const quizRepo = opts.quizRepo ?? new MemoryQuizStore();
   const roomManager = new RoomManager();
 
   // ---- Routes HTTP ------------------------------------------------------
@@ -50,11 +53,15 @@ export function buildServer(): BuiltServer {
     res.json({ status: 'ok', rooms: roomManager.size, uptime: process.uptime() });
   });
 
-  app.get('/api/quizzes', (_req, res) => {
-    res.json({ quizzes: quizStore.list() });
+  app.get('/api/quizzes', async (_req, res) => {
+    try {
+      res.json({ quizzes: await quizRepo.list() });
+    } catch {
+      res.status(500).json({ error: 'server_error' });
+    }
   });
 
-  app.post('/api/quizzes', (req, res) => {
+  app.post('/api/quizzes', async (req, res) => {
     try {
       const input = createQuizSchema.parse(req.body);
       const rounds = input.rounds.map((r) => ({
@@ -66,7 +73,7 @@ export function buildServer(): BuiltServer {
         correctIndex: r.correctIndex,
         answerLabel: r.answerLabel,
       }));
-      const quiz = quizStore.create(input.title, rounds);
+      const quiz = await quizRepo.create(input.title, rounds);
       res.status(201).json({ id: quiz.id, title: quiz.title, roundCount: quiz.rounds.length });
     } catch (err) {
       if (err instanceof ZodError) {
@@ -114,13 +121,13 @@ export function buildServer(): BuiltServer {
   const httpServer = createServer(app);
   const io = new IOServer(httpServer);
 
-  wireSockets(io, quizStore, roomManager);
+  wireSockets(io, quizRepo, roomManager);
 
   // Nettoyage périodique des salles inactives/terminées.
   const pruneTimer = setInterval(() => roomManager.pruneStale(ROOM_IDLE_MS), 15 * 60 * 1000);
   pruneTimer.unref?.();
 
-  return { app, httpServer, io, quizStore, roomManager };
+  return { app, httpServer, io, quizRepo, roomManager };
 }
 
 function buildJoinUrl(
@@ -147,19 +154,19 @@ function toPublicRound(room: Room): PublicRound | null {
   };
 }
 
-function wireSockets(io: IOServer, quizStore: QuizStore, roomManager: RoomManager): void {
+function wireSockets(io: IOServer, quizRepo: QuizRepository, roomManager: RoomManager): void {
   io.on('connection', (socket: Socket) => {
     const data = socket.data as SocketData;
 
     // ---- Hôte ----------------------------------------------------------
 
-    socket.on('host:createRoom', (payload: unknown) => {
+    socket.on('host:createRoom', async (payload: unknown) => {
       const parsed = createRoomSchema.safeParse(payload);
       if (!parsed.success) {
         socket.emit('host:error', { message: 'Requête invalide.' });
         return;
       }
-      const quiz = quizStore.get(parsed.data.quizId);
+      const quiz = await quizRepo.get(parsed.data.quizId);
       if (!quiz) {
         socket.emit('host:error', { message: 'Quiz introuvable.' });
         return;

@@ -10,11 +10,26 @@ export interface QuizSummary {
 }
 
 /**
- * Stockage en mémoire des quiz (v1 — pas de base de données).
- * Les quiz de démonstration sont présents au démarrage. Les quiz créés par un
- * hôte vivent le temps de l'exécution du serveur (voir README pour la limite).
+ * Stockage des quiz. Deux implémentations :
+ *  - `MemoryQuizStore` : en mémoire (dev local, tests, ou secours).
+ *  - `PostgresQuizStore` : persistant (playlists conservées entre redéploiements).
+ * La fabrique `createQuizRepository()` choisit selon la présence de DATABASE_URL.
  */
-export class QuizStore {
+export interface QuizRepository {
+  /** Prépare le stockage (création de table + seed des démos si nécessaire). */
+  init(): Promise<void>;
+  list(): Promise<QuizSummary[]>;
+  get(id: string): Promise<Quiz | undefined>;
+  create(title: string, rounds: Array<Omit<Round, 'id'>>): Promise<Quiz>;
+}
+
+/** Ajoute des identifiants de manche déterministes (r1, r2, …). */
+export function withRoundIds(rounds: Array<Omit<Round, 'id'>>): Round[] {
+  return rounds.map((round, index) => ({ ...round, id: `r${index + 1}` }));
+}
+
+/** Implémentation en mémoire — les quiz de démo sont présents dès la construction. */
+export class MemoryQuizStore implements QuizRepository {
   private readonly quizzes = new Map<string, Quiz>();
   private readonly demoIds = new Set<string>();
 
@@ -25,7 +40,11 @@ export class QuizStore {
     }
   }
 
-  list(): QuizSummary[] {
+  async init(): Promise<void> {
+    /* rien à faire : les démos sont chargées dans le constructeur */
+  }
+
+  async list(): Promise<QuizSummary[]> {
     return [...this.quizzes.values()].map((quiz) => ({
       id: quiz.id,
       title: quiz.title,
@@ -34,17 +53,28 @@ export class QuizStore {
     }));
   }
 
-  get(id: string): Quiz | undefined {
+  async get(id: string): Promise<Quiz | undefined> {
     return this.quizzes.get(id);
   }
 
-  create(title: string, rounds: Array<Omit<Round, 'id'>>): Quiz {
-    const quiz: Quiz = {
-      id: generateId('quiz'),
-      title,
-      rounds: rounds.map((round, index) => ({ ...round, id: `r${index + 1}` })),
-    };
+  async create(title: string, rounds: Array<Omit<Round, 'id'>>): Promise<Quiz> {
+    const quiz: Quiz = { id: generateId('quiz'), title, rounds: withRoundIds(rounds) };
     this.quizzes.set(quiz.id, quiz);
     return quiz;
   }
+}
+
+/**
+ * Choisit l'implémentation de stockage : Postgres si DATABASE_URL est défini,
+ * sinon en mémoire. L'import de la version Postgres est différé pour ne charger
+ * `pg` que lorsque c'est réellement nécessaire.
+ */
+export async function createQuizRepository(
+  databaseUrl = process.env.DATABASE_URL,
+): Promise<QuizRepository> {
+  if (databaseUrl) {
+    const { PostgresQuizStore } = await import('./store.postgres');
+    return new PostgresQuizStore(databaseUrl);
+  }
+  return new MemoryQuizStore();
 }

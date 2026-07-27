@@ -100,14 +100,18 @@ suite**. Choix assumés pour y arriver vite et de façon fiable :
 | Sujet | Choix v1 | Évolution prévue |
 |---|---|---|
 | **Lecture des extraits** | Lecteur **YouTube embarqué** sur l'écran de l'hôte (seek + play sur l'extrait). Pas d'extraction de fichier audio. | Extraction serveur (yt-dlp/ffmpeg) + stockage R2, en secours l'upload manuel — comme prévu dans les specs. |
-| **Stockage** | **En mémoire** (quiz créés + état des parties). Les quiz de démo sont toujours présents. | PostgreSQL + Drizzle pour la persistance des comptes/quiz. |
+| **Stockage** | Playlists **persistées dans PostgreSQL** si `DATABASE_URL` est défini (sinon en mémoire). L'état des parties en cours reste en mémoire (une partie est éphémère). | Idem + comptes hôte ; migrations Drizzle. |
 | **Comptes hôte** | Pas d'authentification — on lance une partie directement. | `better-auth` (comptes hôte, connexion) tel que spécifié. |
 | **Serveur** | Node + Express + Socket.IO, un seul service. | Fastify + adaptateur Redis Socket.IO pour le multi-instances. |
 
-> ⚠️ **Conséquence du stockage en mémoire** : un redémarrage du serveur (ou un
-> redéploiement Render) réinitialise les quiz créés par les hôtes et coupe les
-> parties en cours. C'est acceptable pour tester ; la persistance arrive avec la
-> base de données.
+> 💾 **Persistance des playlists** : définis `DATABASE_URL` (PostgreSQL — p. ex.
+> [Neon](https://neon.tech), gratuit) et les playlists créées sont conservées
+> entre les redémarrages/redéploiements. Sans `DATABASE_URL`, le stockage est en
+> mémoire (les quiz créés sont réinitialisés au redémarrage ; les 2 démos
+> reviennent toujours). Si `DATABASE_URL` est défini mais la base est injoignable,
+> l'app bascule automatiquement en mémoire et reste en ligne (message dans les logs).
+> Dans tous les cas, une partie **en cours** vit en mémoire (c'est voulu : une
+> partie est éphémère).
 
 Le lecteur YouTube nécessite un accès à YouTube depuis le **navigateur de l'hôte**
 (donc une connexion internet côté hôte). Si une vidéo est indisponible, la manche
