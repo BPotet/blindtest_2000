@@ -413,10 +413,14 @@
     $('#answer-count').textContent = `0 / ${p.playerCount}`;
     $('#reveal-answer').disabled = false;
     renderHostOptions(p.hostRound.options);
-    // Précharge la vidéo, lance le décompte 3·2·1 (hôte + joueurs), puis joue.
     cueClip();
-    socket.emit('host:beginCountdown');
-    window.App.playCountdown(3, playCuedClip);
+    if (p.hostRound.roundIndex === 0) {
+      // Décompte « 3·2·1 » uniquement au lancement de la partie (1re manche).
+      socket.emit('host:beginCountdown');
+      window.App.playCountdown(3, playCuedClip);
+    } else {
+      playCuedClip();
+    }
   });
 
   socket.on('host:answerUpdate', (p) => {
