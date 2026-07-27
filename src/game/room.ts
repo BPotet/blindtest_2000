@@ -40,6 +40,8 @@ export class Room {
   private state: RoomState = 'lobby';
   private currentRoundIndex = -1;
   private roundStartedAt = 0;
+  /** Vrai une fois que l'extrait a réellement commencé à jouer chez l'hôte. */
+  private clipStarted = false;
   private readonly players = new Map<string, Player>();
   private answers = new Map<string, RecordedAnswer>();
   createdAt = Date.now();
@@ -141,8 +143,13 @@ export class Room {
 
   // ---- Déroulé de la partie ---------------------------------------------
 
-  /** Démarre la manche suivante. Renvoie les vues hôte + joueur, ou null si terminé. */
-  startNextRound(now = Date.now()): { hostRound: HostRound; publicRound: PublicRound } | null {
+  /**
+   * Prépare la manche suivante (charge la vidéo côté hôte). La fenêtre de
+   * réponse ne s'ouvre PAS ici : elle démarre à `markClipStarted()`, quand
+   * l'extrait joue réellement — pour ne pas pénaliser les joueurs pendant le
+   * chargement de la vidéo. Renvoie les vues hôte + joueur, ou null si terminé.
+   */
+  startNextRound(): { hostRound: HostRound; publicRound: PublicRound } | null {
     if (this.state !== 'lobby' && this.state !== 'roundResult') return null;
     if (this.isLastRound() && this.currentRoundIndex >= 0) return null;
 
@@ -151,7 +158,8 @@ export class Room {
     if (!round) return null;
 
     this.state = 'playing';
-    this.roundStartedAt = now;
+    this.clipStarted = false;
+    this.roundStartedAt = 0;
     this.answers = new Map();
     this.touch();
 
@@ -173,6 +181,22 @@ export class Room {
   }
 
   /**
+   * Marque le vrai début de l'extrait : ouvre la fenêtre de réponse et fixe
+   * l'origine des temps pour le scoring. Idempotent par manche.
+   */
+  markClipStarted(now = Date.now()): boolean {
+    if (this.state !== 'playing' || this.clipStarted) return false;
+    this.clipStarted = true;
+    this.roundStartedAt = now;
+    this.touch();
+    return true;
+  }
+
+  isClipStarted(): boolean {
+    return this.clipStarted;
+  }
+
+  /**
    * Enregistre la réponse d'un joueur. Le temps de réponse est mesuré ici, côté
    * serveur (jamais fourni par le client). Le premier tap verrouille.
    */
@@ -183,6 +207,9 @@ export class Room {
   ): { accepted: true } | { accepted: false; reason: string } {
     if (this.state !== 'playing') {
       return { accepted: false, reason: 'Aucune manche en cours.' };
+    }
+    if (!this.clipStarted) {
+      return { accepted: false, reason: "L'extrait n'a pas encore démarré." };
     }
     const player = this.players.get(playerId);
     if (!player) {

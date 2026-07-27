@@ -99,6 +99,13 @@
     if (p.state === 'playing' && p.publicRound) {
       enterQuestion(p.publicRound);
       if (p.alreadyAnswered) lockOptions('Réponse déjà envoyée ✓ En attente des autres…');
+    } else if (p.state === 'playing' && p.loading) {
+      show('screen-question');
+      $('#q-timer').textContent = '…';
+      $('#q-bar').style.width = '100%';
+      $('#q-text').textContent = '🎵 Prépare-toi…';
+      $('#q-options').innerHTML = '';
+      $('#q-status').textContent = "L'extrait va démarrer…";
     } else if (p.state === 'ended') {
       showFinal(p.leaderboard);
     } else if (p.state === 'roundResult') {
@@ -110,6 +117,21 @@
       show('screen-wait');
       $('#wait-quiz').textContent = p.quizTitle ? `Quiz : ${p.quizTitle}` : '';
     }
+  });
+
+  // La manche se prépare (la vidéo charge chez l'hôte) : on patiente, pas de
+  // minuteur ni de propositions tant que l'extrait n'a pas démarré.
+  socket.on('player:roundLoading', (p) => {
+    stopTimer();
+    state.answered = false;
+    state.lastChoice = null;
+    show('screen-question');
+    $('#q-progress').textContent = `Manche ${p.roundIndex + 1} / ${p.totalRounds}`;
+    $('#q-timer').textContent = '…';
+    $('#q-bar').style.width = '100%';
+    $('#q-text').textContent = '🎵 Prépare-toi…';
+    $('#q-options').innerHTML = '';
+    $('#q-status').textContent = "L'extrait va démarrer…";
   });
 
   socket.on('player:roundStarted', (p) => enterQuestion(p.publicRound));

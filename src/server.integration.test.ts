@@ -184,6 +184,7 @@ describe('Flux de partie de bout en bout (Socket.IO)', () => {
     const roundStartedForPlayer = once<any>(alice, 'player:roundStarted');
     host.emit('host:startRound');
     const hostRound = await once<any>(host, 'host:roundStarted');
+    host.emit('host:clipStarted'); // l'extrait démarre -> la manche s'ouvre
     const playerRound = await roundStartedForPlayer;
 
     expect(hostRound.hostRound.youtubeId).toBeTruthy();

@@ -15,6 +15,8 @@
     lastResults: null,
     authed: false,
     editingQuizId: null,
+    clipStarted: false,
+    clipFallback: null,
   };
 
   // --- API YouTube IFrame -------------------------------------------------
@@ -22,8 +24,13 @@
     state.ytReady = true;
   };
 
-  function playClip(r) {
-    const total = r.durationSeconds;
+  // Charge la vidéo mais NE démarre PAS le minuteur : il ne partira qu'au vrai
+  // début de lecture (onClipStarted), pour ne pas voler de secondes aux joueurs.
+  function loadClip() {
+    const r = state.round;
+    clearInterval(state.timer);
+    $('#round-timer').textContent = '…';
+    $('#round-bar').style.width = '100%';
     if (state.ytReady && window.YT && window.YT.Player) {
       try {
         if (!state.yt) {
@@ -31,15 +38,36 @@
             videoId: r.youtubeId,
             playerVars: { start: r.startSeconds, autoplay: 1, controls: 1, rel: 0, modestbranding: 1 },
             events: {
-              onReady: (e) => { try { e.target.seekTo(r.startSeconds, true); e.target.playVideo(); } catch (_) {} },
+              onReady: (e) => { try { e.target.seekTo(state.round.startSeconds, true); e.target.playVideo(); } catch (_) {} },
+              onStateChange: (e) => { if (e.data === 1) onClipStarted(); }, // 1 = PLAYING
+              onError: () => onClipStarted(),
             },
           });
         } else {
           state.yt.loadVideoById({ videoId: r.youtubeId, startSeconds: r.startSeconds });
           state.yt.playVideo();
         }
-      } catch (_) { /* la lecture échoue gracieusement, le jeu continue */ }
+      } catch (_) { onClipStarted(); }
+    } else {
+      // Pas de lecteur YouTube disponible : on démarre quand même.
+      setTimeout(onClipStarted, 400);
     }
+    // Sécurité : si la vidéo ne démarre jamais (bloquée, autoplay refusé…), on
+    // ouvre la manche après 12 s pour ne pas rester coincé.
+    clearTimeout(state.clipFallback);
+    state.clipFallback = setTimeout(onClipStarted, 12000);
+  }
+
+  // Appelé au vrai démarrage de l'extrait : ouvre la manche (joueurs + minuteur).
+  function onClipStarted() {
+    if (state.clipStarted) return;
+    state.clipStarted = true;
+    clearTimeout(state.clipFallback);
+    socket.emit('host:clipStarted');
+    startCountdown(state.round.durationSeconds);
+  }
+
+  function startCountdown(total) {
     let remaining = total;
     updateTimer(remaining, total);
     clearInterval(state.timer);
@@ -56,6 +84,8 @@
 
   function stopClip() {
     clearInterval(state.timer);
+    clearTimeout(state.clipFallback);
+    state.clipStarted = true; // empêche un démarrage tardif après clôture
     try { if (state.yt) state.yt.pauseVideo(); } catch (_) {}
   }
 
@@ -320,13 +350,14 @@
 
   socket.on('host:roundStarted', (p) => {
     state.round = p.hostRound;
+    state.clipStarted = false;
     show('screen-round');
     $('#round-progress').textContent = `Manche ${p.hostRound.roundIndex + 1} / ${p.hostRound.totalRounds}`;
     $('#round-question').textContent = p.hostRound.question;
     $('#answer-count').textContent = `0 / ${p.playerCount}`;
     $('#reveal-answer').disabled = false;
     renderHostOptions(p.hostRound.options);
-    playClip(p.hostRound);
+    loadClip();
   });
 
   socket.on('host:answerUpdate', (p) => {

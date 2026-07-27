@@ -61,6 +61,10 @@ async function main() {
   // 4) Manche : démarrage, réponses, latences.
   host.emit('host:startRound');
   await once(host, 'host:roundStarted');
+  // L'extrait démarre : la manche s'ouvre pour les joueurs.
+  const questionReceived = players.map(({ s }) => once(s, 'player:roundStarted'));
+  host.emit('host:clipStarted');
+  await Promise.all(questionReceived);
 
   const latencies = [];
   const answerStart = Date.now();

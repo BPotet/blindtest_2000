@@ -73,8 +73,9 @@ describe('Room — déroulé et scoring', () => {
     const wrong = room.addPlayer('Wrong', 's3');
     if (!('player' in fast) || !('player' in slow) || !('player' in wrong)) throw new Error();
 
-    const started = room.startNextRound(1000);
+    const started = room.startNextRound();
     expect(started).not.toBeNull();
+    room.markClipStarted(1000);
 
     room.submitAnswer(fast.player.id, 1, 2000); // +1000ms, correct
     room.submitAnswer(slow.player.id, 1, 15000); // +14000ms, correct
@@ -98,7 +99,8 @@ describe('Room — déroulé et scoring', () => {
     const b = room.addPlayer('B', 's2');
     const c = room.addPlayer('C', 's3');
     if (!('player' in a) || !('player' in b) || !('player' in c)) throw new Error();
-    room.startNextRound(0);
+    room.startNextRound();
+    room.markClipStarted(0);
     room.submitAnswer(a.player.id, 1, 100); // bonne (index 1)
     room.submitAnswer(b.player.id, 1, 200); // bonne
     room.submitAnswer(c.player.id, 0, 300); // mauvaise (index 0)
@@ -117,7 +119,8 @@ describe('Room — déroulé et scoring', () => {
     const room = new Room(makeQuiz(), 'ABCDE');
     const p = room.addPlayer('Alice', 's1');
     if (!('player' in p)) throw new Error();
-    room.startNextRound(0);
+    room.startNextRound();
+    room.markClipStarted(0);
     expect(room.submitAnswer(p.player.id, 0, 100).accepted).toBe(true); // faux, mais enregistré
     const second = room.submitAnswer(p.player.id, 1, 200); // tenterait la bonne réponse
     expect(second.accepted).toBe(false);
@@ -130,6 +133,18 @@ describe('Room — déroulé et scoring', () => {
     const p = room.addPlayer('Alice', 's1');
     if (!('player' in p)) throw new Error();
     expect(room.submitAnswer(p.player.id, 1, 100).accepted).toBe(false);
+  });
+
+  it("refuse les réponses tant que l'extrait n'a pas démarré", () => {
+    const room = new Room(makeQuiz(), 'ABCDE');
+    const p = room.addPlayer('Alice', 's1');
+    if (!('player' in p)) throw new Error();
+    room.startNextRound();
+    expect(room.isClipStarted()).toBe(false);
+    expect(room.submitAnswer(p.player.id, 1, 100).accepted).toBe(false); // trop tôt
+    room.markClipStarted(0);
+    expect(room.isClipStarted()).toBe(true);
+    expect(room.submitAnswer(p.player.id, 1, 100).accepted).toBe(true);
   });
 
   it('enchaîne les manches et termine après la dernière', () => {
@@ -146,10 +161,12 @@ describe('Room — déroulé et scoring', () => {
     const room = new Room(makeQuiz(), 'ABCDE');
     const p = room.addPlayer('Alice', 's1');
     if (!('player' in p)) throw new Error();
-    room.startNextRound(0);
+    room.startNextRound();
+    room.markClipStarted(0);
     room.submitAnswer(p.player.id, 1, 0); // r1 correct
     room.endRound();
-    room.startNextRound(0);
+    room.startNextRound();
+    room.markClipStarted(0);
     room.submitAnswer(p.player.id, 0, 0); // r2 correct
     room.endRound();
     const entry = room.leaderboard().find((e) => e.playerId === p.player.id);
@@ -162,7 +179,8 @@ describe('Room — reconnexion', () => {
     const room = new Room(makeQuiz(), 'ABCDE');
     const p = room.addPlayer('Alice', 's1');
     if (!('player' in p)) throw new Error();
-    room.startNextRound(0);
+    room.startNextRound();
+    room.markClipStarted(0);
     room.submitAnswer(p.player.id, 1, 0);
     room.endRound();
     room.markDisconnected('s1');

@@ -350,7 +350,21 @@ function wireSockets(
         answeredCount: 0,
         playerCount: room.playerCount,
       });
-      socket.to(room.code).emit('player:roundStarted', { publicRound: started.publicRound });
+      // Les joueurs patientent pendant le chargement de la vidéo : la question
+      // et le minuteur n'arrivent qu'au vrai démarrage de l'extrait.
+      socket.to(room.code).emit('player:roundLoading', {
+        roundIndex: started.publicRound.roundIndex,
+        totalRounds: started.publicRound.totalRounds,
+      });
+    });
+
+    // L'hôte signale que l'extrait joue réellement -> on ouvre la manche.
+    socket.on('host:clipStarted', () => {
+      const room = getHostRoom(socket, roomManager);
+      if (!room) return;
+      if (!room.markClipStarted()) return;
+      const publicRound = toPublicRound(room);
+      if (publicRound) socket.to(room.code).emit('player:roundStarted', { publicRound });
     });
 
     socket.on('host:endRound', () => {
@@ -452,7 +466,9 @@ function wireSockets(
         state: room.getState(),
         score: view.score,
         alreadyAnswered: room.hasAnswered(view.id),
-        publicRound: room.getState() === 'playing' ? toPublicRound(room) : null,
+        publicRound:
+          room.getState() === 'playing' && room.isClipStarted() ? toPublicRound(room) : null,
+        loading: room.getState() === 'playing' && !room.isClipStarted(),
         leaderboard: room.leaderboard(),
       });
       broadcastPlayers(io, room);

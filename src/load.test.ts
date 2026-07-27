@@ -80,6 +80,10 @@ describe('Charge — 40 joueurs simultanés', () => {
 
       host.emit('host:startRound');
       await once(host, 'host:roundStarted');
+      // L'extrait démarre : on attend que tous les joueurs reçoivent la question.
+      const questionReceived = players.map(({ s }) => once(s, 'player:roundStarted'));
+      host.emit('host:clipStarted');
+      await Promise.all(questionReceived);
 
       const acks = players.map(({ s }) => once(s, 'player:answerAccepted'));
       const answerStart = Date.now();
