@@ -24,8 +24,10 @@
     state.ytReady = true;
   };
 
-  // Précharge (cue) la vidéo sans la jouer, pendant le décompte « 3·2·1 ».
-  function cueClip() {
+  // Lance la lecture de l'extrait (logique éprouvée : loadVideoById + playVideo).
+  // Le minuteur ne partira qu'au vrai début de lecture (onClipStarted, via
+  // l'événement PLAYING), pour ne pas voler de secondes aux joueurs.
+  function loadClip() {
     const r = state.round;
     clearInterval(state.timer);
     $('#round-timer').textContent = '…';
@@ -35,28 +37,21 @@
         if (!state.yt) {
           state.yt = new YT.Player('yt-player', {
             videoId: r.youtubeId,
-            playerVars: { start: r.startSeconds, autoplay: 0, controls: 1, rel: 0, modestbranding: 1 },
+            playerVars: { start: r.startSeconds, autoplay: 1, controls: 1, rel: 0, modestbranding: 1 },
             events: {
+              onReady: (e) => { try { e.target.seekTo(state.round.startSeconds, true); e.target.playVideo(); } catch (_) {} },
               onStateChange: (e) => { if (e.data === 1) onClipStarted(); }, // 1 = PLAYING
               onError: () => onClipStarted(),
             },
           });
         } else {
-          state.yt.cueVideoById({ videoId: r.youtubeId, startSeconds: r.startSeconds });
+          state.yt.loadVideoById({ videoId: r.youtubeId, startSeconds: r.startSeconds });
+          state.yt.playVideo();
         }
-      } catch (_) { /* on jouera sans vidéo */ }
-    }
-  }
-
-  // Joue l'extrait à la fin du décompte. Le minuteur ne partira qu'au vrai début
-  // de lecture (onClipStarted), pour ne pas voler de secondes aux joueurs.
-  function playCuedClip() {
-    const r = state.round;
-    if (state.ytReady && state.yt) {
-      try { state.yt.seekTo(r.startSeconds, true); state.yt.playVideo(); }
-      catch (_) { onClipStarted(); }
+      } catch (_) { onClipStarted(); }
     } else {
-      onClipStarted(); // pas de lecteur YouTube -> on ouvre la manche directement
+      // Pas de lecteur YouTube disponible : on ouvre la manche directement.
+      setTimeout(onClipStarted, 400);
     }
     // Sécurité : si la lecture ne démarre jamais (bloquée, autoplay refusé…), on
     // ouvre la manche après 12 s pour ne pas rester coincé.
@@ -413,13 +408,13 @@
     $('#answer-count').textContent = `0 / ${p.playerCount}`;
     $('#reveal-answer').disabled = false;
     renderHostOptions(p.hostRound.options);
-    cueClip();
     if (p.hostRound.roundIndex === 0) {
-      // Décompte « 3·2·1 » uniquement au lancement de la partie (1re manche).
+      // 1re manche : décompte « 3·2·1 » PUIS lecture.
       socket.emit('host:beginCountdown');
-      window.App.playCountdown(3, playCuedClip);
+      window.App.playCountdown(3, loadClip);
     } else {
-      playCuedClip();
+      // Manches suivantes : lecture immédiate, sans décompte.
+      loadClip();
     }
   });
 
