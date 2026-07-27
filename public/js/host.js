@@ -200,7 +200,13 @@
     block.className = 'builder-round';
     block.dataset.round = String(n);
     block.innerHTML =
-      `<h3>Manche ${n}</h3>` +
+      `<div class="builder-round__head">` +
+      `<h3 class="builder-round__title">Manche ${n}</h3>` +
+      `<div class="builder-round__ctrls">` +
+      `<button type="button" class="btn btn--ghost btn--sm r-up" aria-label="Monter la manche" title="Monter">↑</button>` +
+      `<button type="button" class="btn btn--ghost btn--sm r-down" aria-label="Descendre la manche" title="Descendre">↓</button>` +
+      `<button type="button" class="btn btn--ghost btn--sm r-del" aria-label="Supprimer la manche" title="Supprimer">🗑️</button>` +
+      `</div></div>` +
       `<label>Lien YouTube (ou ID)</label><input class="r-yt" placeholder="https://youtu.be/..." value="${escapeHtml(d?.youtube ?? '')}" />` +
       `<div style="display:flex; gap:10px;">` +
       `<div style="flex:1"><label>Départ (s)</label><input class="r-start" type="number" min="0" value="${d?.startSeconds ?? 0}" /></div>` +
@@ -212,6 +218,7 @@
       `</div>` +
       `<label>Réponse révélée — facultatif <span style="font-weight:400; color:var(--text-muted)">(vide = la bonne proposition)</span></label><input class="r-answer" placeholder="Laisse vide, ou détaille : Artiste — Titre (année)" value="${escapeHtml(d?.answerLabel ?? '')}" />`;
     $('#builder-rounds').appendChild(block);
+    renumberRounds();
   }
 
   function optionInput(n, i, value, checked) {
@@ -221,6 +228,46 @@
       `<input class="r-opt" placeholder="Proposition ${i + 1}" value="${escapeHtml(value || '')}" />` +
       `</div>`
     );
+  }
+
+  // Renumérote les titres « Manche N » selon l'ordre courant et met à jour l'état
+  // des flèches (désactivées en haut/bas).
+  function renumberRounds() {
+    const blocks = $$('.builder-round');
+    blocks.forEach((b, i) => {
+      const title = b.querySelector('.builder-round__title');
+      if (title) title.textContent = `Manche ${i + 1}`;
+      const up = b.querySelector('.r-up');
+      const down = b.querySelector('.r-down');
+      if (up) up.disabled = i === 0;
+      if (down) down.disabled = i === blocks.length - 1;
+    });
+  }
+
+  function moveRound(block, dir) {
+    if (dir < 0 && block.previousElementSibling) {
+      block.parentNode.insertBefore(block, block.previousElementSibling);
+    } else if (dir > 0 && block.nextElementSibling) {
+      block.parentNode.insertBefore(block.nextElementSibling, block);
+    }
+    renumberRounds();
+  }
+
+  function removeRound(block) {
+    if ($$('.builder-round').length <= 1) { toast('Il faut au moins une manche.'); return; }
+    block.remove();
+    renumberRounds();
+  }
+
+  // Délégation des clics sur les contrôles de manche (↑ ↓ 🗑️).
+  function onBuilderRoundsClick(e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const block = btn.closest('.builder-round');
+    if (!block) return;
+    if (btn.classList.contains('r-up')) moveRound(block, -1);
+    else if (btn.classList.contains('r-down')) moveRound(block, 1);
+    else if (btn.classList.contains('r-del')) removeRound(block);
   }
 
   function resetBuilder() {
@@ -436,6 +483,7 @@
     }
   };
   $('#add-round').onclick = () => addRoundBlock();
+  $('#builder-rounds').addEventListener('click', onBuilderRoundsClick);
   $('#save-quiz').onclick = saveQuiz;
   $('#start-game').onclick = () => socket.emit('host:startRound');
   $('#reveal-answer').onclick = () => { $('#reveal-answer').disabled = true; stopClip(); socket.emit('host:endRound'); };
