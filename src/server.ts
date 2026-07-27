@@ -237,7 +237,8 @@ function mapValidatedRounds(rounds: CreateQuizInput['rounds']) {
     question: r.question,
     options: r.options,
     correctIndex: r.correctIndex,
-    answerLabel: r.answerLabel,
+    // Réponse révélée facultative : par défaut, la bonne proposition.
+    answerLabel: r.answerLabel?.trim() || r.options[r.correctIndex],
   }));
 }
 

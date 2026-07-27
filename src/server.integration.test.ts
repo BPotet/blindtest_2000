@@ -158,6 +158,33 @@ describe('CRUD playlists (HTTP)', () => {
     });
     expect(res.status).toBe(401);
   });
+
+  it('rend la réponse révélée facultative (défaut = bonne proposition)', async () => {
+    const create = await fetch(`http://localhost:${port}/api/quizzes`, {
+      method: 'POST',
+      headers: json(),
+      body: JSON.stringify({
+        title: 'Sans reveal',
+        rounds: [
+          {
+            youtube: 'dQw4w9WgXcQ',
+            startSeconds: 0,
+            durationSeconds: 20,
+            question: 'Q ?',
+            options: ['Bonne', 'Mauvaise'],
+            correctIndex: 0,
+          },
+        ],
+      }),
+    });
+    expect(create.status).toBe(201);
+    const { id } = (await create.json()) as { id: string };
+    const get = await fetch(`http://localhost:${port}/api/quizzes/${id}`, {
+      headers: { Cookie: cookie },
+    });
+    const quiz = (await get.json()) as { rounds: Array<{ answerLabel: string }> };
+    expect(quiz.rounds[0].answerLabel).toBe('Bonne');
+  });
 });
 
 describe('Flux de partie de bout en bout (Socket.IO)', () => {

@@ -45,7 +45,8 @@ const roundInputSchema = z.object({
   question: z.string().min(1).max(200),
   options: z.array(z.string().min(1).max(120)).min(2).max(6),
   correctIndex: z.number().int().min(0).max(5),
-  answerLabel: z.string().min(1).max(200),
+  // Facultatif : si vide, on retombe sur la bonne proposition (voir mapValidatedRounds).
+  answerLabel: z.string().max(200).optional(),
 });
 
 export const createQuizSchema = z

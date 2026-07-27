@@ -210,7 +210,7 @@
       `<div class="r-options">` +
       opts.map((val, i) => optionInput(n, i, val, i === correct)).join('') +
       `</div>` +
-      `<label>Réponse révélée (titre / artiste)</label><input class="r-answer" placeholder="Artiste — Titre (année)" value="${escapeHtml(d?.answerLabel ?? '')}" />`;
+      `<label>Réponse révélée — facultatif <span style="font-weight:400; color:var(--text-muted)">(vide = la bonne proposition)</span></label><input class="r-answer" placeholder="Laisse vide, ou détaille : Artiste — Titre (année)" value="${escapeHtml(d?.answerLabel ?? '')}" />`;
     $('#builder-rounds').appendChild(block);
   }
 
