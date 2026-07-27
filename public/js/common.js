@@ -49,5 +49,26 @@
     }
   }
 
-  window.App = { $, $$, show, escapeHtml, OPTION_SHAPES, toast, renderLeaderboard };
+  // Répartition des réponses par proposition (barres façon Kahoot).
+  function renderDistribution(container, { options, distribution, correctIndex, chosenIndex }) {
+    container.innerHTML = '';
+    const counts = distribution || [];
+    const max = Math.max(1, ...counts);
+    options.forEach((opt, i) => {
+      const count = counts[i] || 0;
+      const row = document.createElement('div');
+      row.className = 'dist-row' + (i === correctIndex ? ' correct' : '');
+      const tags =
+        (i === correctIndex ? '<span class="dist-tag good">bonne réponse</span>' : '') +
+        (chosenIndex === i ? '<span class="dist-tag you">ton choix</span>' : '');
+      row.innerHTML =
+        `<div class="dist-label"><span class="option__shape">${OPTION_SHAPES[i % 6]}</span>` +
+        `<span class="dist-text">${escapeHtml(opt)}</span>${tags}</div>` +
+        `<div class="dist-track"><div class="dist-bar" data-c="${i % 6}" style="width:${(count / max) * 100}%"></div></div>` +
+        `<div class="dist-count">${count}</div>`;
+      container.appendChild(row);
+    });
+  }
+
+  window.App = { $, $$, show, escapeHtml, OPTION_SHAPES, toast, renderLeaderboard, renderDistribution };
 })();

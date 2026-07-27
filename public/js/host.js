@@ -277,6 +277,12 @@
     setTimeout(() => {
       show('screen-result');
       $('#result-answer').textContent = p.answerLabel;
+      window.App.renderDistribution($('#result-distribution'), {
+        options: p.options,
+        distribution: p.distribution,
+        correctIndex: p.correctIndex,
+      });
+      $('#result-correct-count').textContent = `${p.correctCount} / ${p.totalPlayers} ont trouvé`;
       renderLeaderboard($('#result-leaderboard'), p.leaderboard, null);
       $('#next-round').style.display = p.isLastRound ? 'none' : '';
     }, 1200);

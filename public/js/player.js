@@ -3,7 +3,7 @@
   const { $, $$, show, escapeHtml, OPTION_SHAPES, toast, renderLeaderboard } = window.App;
   const socket = io();
 
-  const state = { code: null, playerId: null, answered: false };
+  const state = { code: null, playerId: null, answered: false, lastChoice: null };
 
   // Pré-remplissage du code depuis l'URL (QR code -> /join?code=XXXXX).
   const params = new URLSearchParams(location.search);
@@ -28,6 +28,7 @@
   function submitAnswer(i, btn) {
     if (state.answered) return;
     state.answered = true;
+    state.lastChoice = i;
     socket.emit('player:answer', { optionIndex: i });
     $$('#q-options .option').forEach((b) => {
       b.disabled = true;
@@ -45,6 +46,7 @@
 
   function enterQuestion(pr) {
     state.answered = false;
+    state.lastChoice = null;
     show('screen-question');
     $('#q-progress').textContent = `Manche ${pr.roundIndex + 1} / ${pr.totalRounds}`;
     $('#q-text').textContent = pr.question;
@@ -99,6 +101,12 @@
       $('#feedback-points').textContent = '+0';
     }
     $('#feedback-answer').textContent = `La réponse : ${p.answerLabel}`;
+    window.App.renderDistribution($('#feedback-distribution'), {
+      options: p.options,
+      distribution: p.distribution,
+      correctIndex: p.correctIndex,
+      chosenIndex: state.lastChoice,
+    });
     renderLeaderboard($('#feedback-leaderboard'), p.leaderboard, state.playerId);
   });
 

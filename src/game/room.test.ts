@@ -92,6 +92,27 @@ describe('Room — déroulé et scoring', () => {
     expect(perPlayer.get(slow.player.id)!.pointsAwarded).toBeGreaterThanOrEqual(BASE_POINTS);
   });
 
+  it('calcule la répartition des réponses en fin de manche', () => {
+    const room = new Room(makeQuiz(), 'ABCDE');
+    const a = room.addPlayer('A', 's1');
+    const b = room.addPlayer('B', 's2');
+    const c = room.addPlayer('C', 's3');
+    if (!('player' in a) || !('player' in b) || !('player' in c)) throw new Error();
+    room.startNextRound(0);
+    room.submitAnswer(a.player.id, 1, 100); // bonne (index 1)
+    room.submitAnswer(b.player.id, 1, 200); // bonne
+    room.submitAnswer(c.player.id, 0, 300); // mauvaise (index 0)
+    // le 4e joueur ne répond pas
+    room.addPlayer; // noop
+    const result = room.endRound();
+    expect(result).not.toBeNull();
+    expect(result!.distribution).toEqual([1, 2, 0]); // 1 sur A, 2 sur B, 0 sur C
+    expect(result!.answeredCount).toBe(3);
+    expect(result!.correctCount).toBe(2);
+    expect(result!.totalPlayers).toBe(3);
+    expect(result!.options).toEqual(['A', 'B', 'C']);
+  });
+
   it('verrouille au premier tap (ignore les réponses suivantes)', () => {
     const room = new Room(makeQuiz(), 'ABCDE');
     const p = room.addPlayer('Alice', 's1');

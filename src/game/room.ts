@@ -207,6 +207,12 @@ export class Room {
   endRound(): {
     correctIndex: number;
     answerLabel: string;
+    options: string[];
+    /** Nombre de réponses reçues par proposition (index = proposition). */
+    distribution: number[];
+    answeredCount: number;
+    correctCount: number;
+    totalPlayers: number;
     perPlayer: Map<string, PlayerRoundResult>;
   } | null {
     if (this.state !== 'playing') return null;
@@ -215,6 +221,9 @@ export class Room {
 
     const answerWindowMs = round.durationSeconds * 1000;
     const perPlayer = new Map<string, PlayerRoundResult>();
+    const distribution = new Array<number>(round.options.length).fill(0);
+    let answeredCount = 0;
+    let correctCount = 0;
 
     for (const player of this.players.values()) {
       const answer = this.answers.get(player.id);
@@ -223,6 +232,13 @@ export class Room {
         ? computeScore({ correct, elapsedMs: answer.elapsedMs, answerWindowMs })
         : 0;
       player.score += pointsAwarded;
+      if (answer) {
+        answeredCount += 1;
+        if (answer.optionIndex >= 0 && answer.optionIndex < distribution.length) {
+          distribution[answer.optionIndex] += 1;
+        }
+      }
+      if (correct) correctCount += 1;
       perPlayer.set(player.id, {
         correct,
         pointsAwarded,
@@ -234,7 +250,16 @@ export class Room {
 
     this.state = 'roundResult';
     this.touch();
-    return { correctIndex: round.correctIndex, answerLabel: round.answerLabel, perPlayer };
+    return {
+      correctIndex: round.correctIndex,
+      answerLabel: round.answerLabel,
+      options: [...round.options],
+      distribution,
+      answeredCount,
+      correctCount,
+      totalPlayers: this.players.size,
+      perPlayer,
+    };
   }
 
   endGame(): void {

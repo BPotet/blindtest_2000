@@ -325,6 +325,11 @@ function wireSockets(
       io.to(room.code).emit('round:result', {
         correctIndex: result.correctIndex,
         answerLabel: result.answerLabel,
+        options: result.options,
+        distribution: result.distribution,
+        answeredCount: result.answeredCount,
+        correctCount: result.correctCount,
+        totalPlayers: result.totalPlayers,
         results,
         leaderboard,
         isLastRound: room.isLastRound(),
