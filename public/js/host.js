@@ -160,25 +160,27 @@
   // --- Constructeur de quiz ----------------------------------------------
   let roundCount = 0;
   function addRoundBlock(data) {
+    // `data` n'est utilisé que si c'est bien un objet de manche (jamais un event).
+    const d = data && typeof data === 'object' && 'youtube' in data ? data : null;
     roundCount += 1;
     const n = roundCount;
-    const opts = data && data.options && data.options.length ? data.options : ['', '', '', ''];
-    const correct = data ? data.correctIndex : 0;
+    const opts = d?.options?.length ? d.options : ['', '', '', ''];
+    const correct = d?.correctIndex ?? 0;
     const block = document.createElement('div');
     block.className = 'builder-round';
     block.dataset.round = String(n);
     block.innerHTML =
       `<h3>Manche ${n}</h3>` +
-      `<label>Lien YouTube (ou ID)</label><input class="r-yt" placeholder="https://youtu.be/..." value="${escapeHtml(data ? data.youtube : '')}" />` +
+      `<label>Lien YouTube (ou ID)</label><input class="r-yt" placeholder="https://youtu.be/..." value="${escapeHtml(d?.youtube ?? '')}" />` +
       `<div style="display:flex; gap:10px;">` +
-      `<div style="flex:1"><label>Départ (s)</label><input class="r-start" type="number" min="0" value="${data ? data.startSeconds : 0}" /></div>` +
-      `<div style="flex:1"><label>Durée (s)</label><input class="r-dur" type="number" min="5" max="60" value="${data ? data.durationSeconds : 20}" /></div></div>` +
-      `<label>Question posée aux joueurs</label><input class="r-q" value="${escapeHtml(data ? data.question : 'Quel est ce morceau ?')}" />` +
+      `<div style="flex:1"><label>Départ (s)</label><input class="r-start" type="number" min="0" value="${d?.startSeconds ?? 0}" /></div>` +
+      `<div style="flex:1"><label>Durée (s)</label><input class="r-dur" type="number" min="5" max="60" value="${d?.durationSeconds ?? 20}" /></div></div>` +
+      `<label>Question posée aux joueurs</label><input class="r-q" value="${escapeHtml(d?.question ?? 'Quel est ce morceau ?')}" />` +
       `<label>Propositions (coche la bonne réponse)</label>` +
       `<div class="r-options">` +
       opts.map((val, i) => optionInput(n, i, val, i === correct)).join('') +
       `</div>` +
-      `<label>Réponse révélée (titre / artiste)</label><input class="r-answer" placeholder="Artiste — Titre (année)" value="${escapeHtml(data ? data.answerLabel : '')}" />`;
+      `<label>Réponse révélée (titre / artiste)</label><input class="r-answer" placeholder="Artiste — Titre (année)" value="${escapeHtml(d?.answerLabel ?? '')}" />`;
     $('#builder-rounds').appendChild(block);
   }
 
@@ -402,7 +404,7 @@
       b.style.display = 'none';
     }
   };
-  $('#add-round').onclick = addRoundBlock;
+  $('#add-round').onclick = () => addRoundBlock();
   $('#save-quiz').onclick = saveQuiz;
   $('#start-game').onclick = () => socket.emit('host:startRound');
   $('#reveal-answer').onclick = () => { $('#reveal-answer').disabled = true; stopClip(); socket.emit('host:endRound'); };
