@@ -11,6 +11,18 @@ export const createRoomSchema = z.object({
   combo: z.boolean().optional(),
 });
 
+// Inscription / connexion d'un compte hôte. Nom sobre (lettres/chiffres/._-),
+// mot de passe d'au moins 6 caractères.
+export const credentialsSchema = z.object({
+  username: z
+    .string()
+    .trim()
+    .min(3, 'Le nom doit faire au moins 3 caractères.')
+    .max(40)
+    .regex(/^[\p{L}\p{N}._-]+$/u, 'Lettres, chiffres, point, tiret et underscore uniquement.'),
+  password: z.string().min(6, 'Le mot de passe doit faire au moins 6 caractères.').max(200),
+});
+
 export const joinRoomSchema = z.object({
   code: z.string().min(3).max(10),
   pseudo: z.string().min(1).max(40),

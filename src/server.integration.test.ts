@@ -92,6 +92,61 @@ describe('Authentification hôte', () => {
   });
 });
 
+describe('Inscription multi-hôtes (HTTP)', () => {
+  const register = (username: string, password: string) =>
+    fetch(`http://localhost:${port}/api/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+
+  it('crée un compte, ouvre une session et rejette les doublons', async () => {
+    const res = await register('MarieHost', 'motdepasse1');
+    expect(res.status).toBe(201);
+    const cook = (/bt_session=[^;]+/.exec(res.headers.get('set-cookie') ?? '') ?? [''])[0];
+    expect(cook).toMatch(/^bt_session=/);
+    // La session fraîche donne accès (au moins les démos).
+    const me = await fetch(`http://localhost:${port}/api/me`, { headers: { Cookie: cook } });
+    expect(((await me.json()) as any).username).toBe('MarieHost');
+    // Doublon (insensible à la casse) -> 409.
+    const dup = await register('mariehost', 'autrepass');
+    expect(dup.status).toBe(409);
+  });
+
+  it('valide les entrées (nom trop court, mot de passe trop court)', async () => {
+    expect((await register('ab', 'motdepasse1')).status).toBe(400);
+    expect((await register('valide', '123')).status).toBe(400);
+  });
+
+  it('isole les playlists : chaque hôte ne voit que les siennes (+ démos)', async () => {
+    const cookieFor = async (u: string) => {
+      const r = await register(u, 'motdepasse1');
+      return (/bt_session=[^;]+/.exec(r.headers.get('set-cookie') ?? '') ?? [''])[0];
+    };
+    const anaCookie = await cookieFor('Ana');
+    const noaCookie = await cookieFor('Noa');
+    const quiz = {
+      title: 'Playlist Ana',
+      rounds: [
+        { youtube: 'dQw4w9WgXcQ', startSeconds: 0, durationSeconds: 20, question: 'Q ?', options: ['A', 'B'], correctIndex: 0 },
+      ],
+    };
+    const create = await fetch(`http://localhost:${port}/api/quizzes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: anaCookie },
+      body: JSON.stringify(quiz),
+    });
+    expect(create.status).toBe(201);
+
+    const anaList = (await (await fetch(`http://localhost:${port}/api/quizzes`, { headers: { Cookie: anaCookie } })).json()) as any;
+    const noaList = (await (await fetch(`http://localhost:${port}/api/quizzes`, { headers: { Cookie: noaCookie } })).json()) as any;
+    expect(anaList.quizzes.some((q: any) => q.title === 'Playlist Ana')).toBe(true);
+    expect(noaList.quizzes.some((q: any) => q.title === 'Playlist Ana')).toBe(false);
+    // Les deux voient les démos.
+    expect(noaList.quizzes.some((q: any) => q.isDemo)).toBe(true);
+  });
+});
+
 describe('Pages statiques', () => {
   it('sert l\'écran public sur /present (sans exiger de session)', async () => {
     const res = await fetch(`http://localhost:${port}/present`);

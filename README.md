@@ -41,6 +41,9 @@ inclus et ce qui viendra ensuite.
 - **Nombre de joueurs illimité** : aucune limite artificielle.
 - **Reconnexion** : recharger la page ou perdre le réseau ne fait pas perdre son
   score ni sa place.
+- **Comptes hôte multiples** : chaque organisateur **crée son compte** et gère
+  **ses propres playlists**, invisibles des autres hôtes (les démos restent
+  communes). Voir [Comptes hôte](#-comptes-hôte-plusieurs-organisateurs).
 - **Quiz de démonstration** livrés d'origine + **création, édition et
   suppression** de ses propres playlists depuis l'interface.
 - **Bonus de série (combo)** : points bonus croissants pour les bonnes réponses
@@ -97,23 +100,33 @@ Aucune base de données ni service externe n'est nécessaire pour cette v1.
 
 ---
 
-## 🔐 Accès hôte (login)
+## 🔐 Comptes hôte (plusieurs organisateurs)
 
-L'écran de l'hôte est protégé par un **login + mot de passe** (compte `admin`).
-Les joueurs, eux, rejoignent **sans compte**. Configure via variables d'env :
+L'écran de l'hôte est protégé par un **login + mot de passe**. Chaque hôte peut
+**créer son propre compte** depuis l'écran de connexion (onglet **« Créer un
+compte »**) : les playlists qu'il crée sont **rattachées à son compte** et ne
+sont visibles que par lui — les quiz de **démo** restent visibles par tous.
+Plusieurs hôtes cohabitent donc, chacun avec ses propres playlists. Les joueurs,
+eux, rejoignent **sans compte**.
+
+Un compte **admin** de départ est aussi (ré)appliqué à chaque démarrage depuis
+l'environnement (pratique comme premier accès) :
 
 | Variable | Rôle | Défaut |
 |---|---|---|
-| `ADMIN_USERNAME` | Identifiant de l'hôte | `admin` |
-| `ADMIN_PASSWORD` | Mot de passe de l'hôte (haché avec scrypt) | `admin` ⚠️ à changer |
+| `ADMIN_USERNAME` | Identifiant du compte de départ | `admin` |
+| `ADMIN_PASSWORD` | Mot de passe du compte de départ (haché avec scrypt) | `admin` ⚠️ à changer |
 | `SESSION_SECRET` | Secret de signature des sessions (cookie) | aléatoire par démarrage |
 
 > Sur Render : **Environment** → ajoute `ADMIN_PASSWORD` et `SESSION_SECRET`
-> (chaîne aléatoire longue et stable, sinon tu es déconnecté à chaque
-> redéploiement). Le compte admin est (ré)appliqué à chaque démarrage, donc
-> changer `ADMIN_PASSWORD` puis redéployer met à jour le mot de passe. Les
-> playlists que tu crées sont **rattachées à ton compte** ; les démos restent
-> visibles par tous.
+> (chaîne aléatoire longue et stable, sinon tout le monde est déconnecté à chaque
+> redéploiement). Le compte admin est (ré)appliqué à chaque démarrage.
+>
+> 💾 **Pour du multi-comptes durable, définis `DATABASE_URL`** (PostgreSQL, p. ex.
+> [Neon](https://neon.tech)) : les comptes créés et leurs playlists sont alors
+> conservés entre les redémarrages. Sans base, les comptes créés vivent en
+> mémoire et repartent à zéro au redémarrage (seul le compte admin de
+> l'environnement revient).
 
 ## 🧪 Tests
 
@@ -158,7 +171,7 @@ suite**. Choix assumés pour y arriver vite et de façon fiable :
 |---|---|---|
 | **Lecture des extraits** | Lecteur **YouTube embarqué** sur l'écran de l'hôte (seek + play sur l'extrait). Pas d'extraction de fichier audio. | Extraction serveur (yt-dlp/ffmpeg) + stockage R2, en secours l'upload manuel — comme prévu dans les specs. |
 | **Stockage** | Playlists **persistées dans PostgreSQL** si `DATABASE_URL` est défini (sinon en mémoire). L'état des parties en cours reste en mémoire (une partie est éphémère). | Idem + comptes hôte ; migrations Drizzle. |
-| **Comptes hôte** | **Login + mot de passe** (compte `admin` unique via variables d'env), sessions par cookie signé ; les playlists sont **rattachées à l'utilisateur**. | Plusieurs comptes / inscription ; migration vers `better-auth`. |
+| **Comptes hôte** | **Inscription libre multi-comptes** (chaque hôte crée le sien) + compte `admin` de départ via variables d'env ; mots de passe hachés (scrypt), sessions par cookie signé ; playlists **rattachées à chaque utilisateur**. | Réinitialisation de mot de passe, connexion sociale ; migration vers `better-auth`. |
 | **Serveur** | Node + Express + Socket.IO, un seul service. | Fastify + adaptateur Redis Socket.IO pour le multi-instances. |
 
 > 💾 **Persistance des playlists** : définis `DATABASE_URL` (PostgreSQL — p. ex.

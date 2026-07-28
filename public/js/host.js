@@ -225,40 +225,73 @@
   }
 
   // --- Authentification ---------------------------------------------------
+  let authMode = 'login'; // 'login' | 'register'
+
+  function setAuthMode(mode) {
+    authMode = mode;
+    const register = mode === 'register';
+    $('#tab-login').classList.toggle('active', !register);
+    $('#tab-register').classList.toggle('active', register);
+    $('#login-heading').textContent = register ? 'Créer un compte hôte' : 'Connexion hôte';
+    $('#login-sub').textContent = register
+      ? 'Choisis un identifiant et un mot de passe pour héberger tes blindtests.'
+      : 'Connecte-toi pour retrouver tes playlists.';
+    $('#confirm-row').style.display = register ? '' : 'none';
+    $('#register-hint').style.display = register ? '' : 'none';
+    $('#login-btn').textContent = register ? '✨ Créer mon compte' : 'Se connecter';
+    $('#login-password').setAttribute('autocomplete', register ? 'new-password' : 'current-password');
+    $('#login-error').textContent = '';
+  }
+
   async function checkAuth() {
     try {
       const res = await fetch('/api/me');
-      if (res.ok) { onAuthed(); return; }
+      if (res.ok) { const me = await res.json().catch(() => ({})); onAuthed(me.username); return; }
     } catch (_) { /* réseau : on montre le login */ }
     show('screen-login');
   }
 
-  function onAuthed() {
+  function onAuthed(username) {
     state.authed = true;
     $('#logout-btn').style.display = '';
     $('#open-present').style.display = '';
+    const label = $('#host-user');
+    if (username) { label.textContent = `👤 ${username}`; label.style.display = ''; }
     show('screen-home');
     presentScene('idle');
     loadQuizzes();
     socket.connect(); // le handshake porte désormais le cookie de session
   }
 
-  async function doLogin() {
+  // Connexion ou inscription selon l'onglet actif.
+  async function doAuth() {
     const username = $('#login-username').value.trim();
     const password = $('#login-password').value;
     $('#login-error').textContent = '';
     if (!username || !password) { $('#login-error').textContent = 'Identifiant et mot de passe requis.'; return; }
+    if (authMode === 'register') {
+      if (password.length < 6) { $('#login-error').textContent = 'Mot de passe : 6 caractères minimum.'; return; }
+      if (password !== $('#login-confirm').value) { $('#login-error').textContent = 'Les mots de passe ne correspondent pas.'; return; }
+    }
     const btn = $('#login-btn');
     btn.disabled = true;
     try {
-      const res = await fetch('/api/login', {
+      const res = await fetch(authMode === 'register' ? '/api/register' : '/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
-      if (!res.ok) { $('#login-error').textContent = 'Identifiant ou mot de passe incorrect.'; return; }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        $('#login-error').textContent = authMode === 'register'
+          ? (body.message || 'Inscription impossible.')
+          : 'Identifiant ou mot de passe incorrect.';
+        return;
+      }
+      const body = await res.json().catch(() => ({}));
       $('#login-password').value = '';
-      onAuthed();
+      $('#login-confirm').value = '';
+      onAuthed(body.username || username);
     } catch (_) {
       $('#login-error').textContent = 'Erreur réseau.';
     } finally {
@@ -700,8 +733,11 @@
   $('#mode-teams').onclick = () => setMode('teams');
   $('#combo-on').onclick = () => setCombo(true);
   $('#combo-off').onclick = () => setCombo(false);
-  $('#login-btn').onclick = doLogin;
-  $('#login-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+  $('#tab-login').onclick = () => setAuthMode('login');
+  $('#tab-register').onclick = () => setAuthMode('register');
+  $('#login-btn').onclick = doAuth;
+  $('#login-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') doAuth(); });
+  $('#login-confirm').addEventListener('keydown', (e) => { if (e.key === 'Enter') doAuth(); });
   $('#logout-btn').onclick = doLogout;
   $('#open-present').onclick = openPresent;
 

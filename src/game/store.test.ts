@@ -80,6 +80,34 @@ describe('MemoryQuizStore — utilisateurs', () => {
     expect(second.id).toBe(first.id);
     expect((await store.getUserById(first.id))?.passwordHash).toBe('hash2');
   });
+
+  it('createUser crée un nouveau compte hôte', async () => {
+    const store = new MemoryQuizStore();
+    const user = await store.createUser('Bob', 'hashB');
+    expect(user).not.toBeNull();
+    expect(await store.getUserByUsername('bob')).toMatchObject({ id: user!.id });
+  });
+
+  it('createUser refuse un nom déjà pris (insensible à la casse)', async () => {
+    const store = new MemoryQuizStore();
+    await store.createUser('Bob', 'hashB');
+    expect(await store.createUser('bob', 'autre')).toBeNull();
+    expect(await store.createUser('BOB', 'autre')).toBeNull();
+    // Le hash d'origine n'est pas écrasé.
+    expect((await store.getUserByUsername('bob'))?.passwordHash).toBe('hashB');
+  });
+
+  it('isole les playlists entre deux hôtes distincts', async () => {
+    const store = new MemoryQuizStore();
+    const alice = await store.createUser('Alice', 'ha');
+    const bob = await store.createUser('Bob', 'hb');
+    await store.create(alice!.id, 'Playlist Alice', sampleRounds);
+    await store.create(bob!.id, 'Playlist Bob', sampleRounds);
+    const aliceList = await store.list(alice!.id);
+    expect(aliceList.some((q) => q.title === 'Playlist Alice')).toBe(true);
+    expect(aliceList.some((q) => q.title === 'Playlist Bob')).toBe(false);
+    expect(aliceList.some((q) => q.isDemo)).toBe(true);
+  });
 });
 
 describe('canAccessQuiz', () => {

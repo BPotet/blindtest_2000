@@ -15,20 +15,31 @@
       <span class="brand__tag">écran de l'hôte</span>
       <button id="mute-btn" class="icon-btn" style="margin-left:auto" aria-label="Activer ou couper le son">🔊</button>
       <button id="open-present" class="btn btn--ghost" style="display:none;" title="Ouvrir l'écran à projeter ou partager (sans la vidéo)">🖥️ Écran public</button>
+      <span id="host-user" class="host-user" style="display:none;"></span>
       <button id="logout-btn" class="btn btn--ghost" style="display:none;" aria-label="Se déconnecter">Se déconnecter</button>
     </header>
 
-    <!-- Connexion hôte -->
+    <!-- Connexion / inscription hôte -->
     <section id="screen-login" class="screen screen--active">
       <div class="card" style="max-width:440px; margin:24px auto;">
-        <h1>Connexion hôte</h1>
-        <p class="muted">Cet espace est réservé à l'organisateur du blindtest.</p>
+        <div class="auth-tabs">
+          <button id="tab-login" type="button" class="chip-btn active">Se connecter</button>
+          <button id="tab-register" type="button" class="chip-btn">Créer un compte</button>
+        </div>
+        <h1 id="login-heading">Connexion hôte</h1>
+        <p class="muted" id="login-sub">Connecte-toi pour retrouver tes playlists.</p>
         <label for="login-username">Identifiant</label>
-        <input id="login-username" autocomplete="username" placeholder="admin" />
+        <input id="login-username" autocomplete="username" placeholder="ton pseudo d'hôte" />
         <label for="login-password">Mot de passe</label>
         <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••••" />
+        <div id="confirm-row" style="display:none;">
+          <label for="login-confirm">Confirme le mot de passe</label>
+          <input id="login-confirm" type="password" autocomplete="new-password" placeholder="••••••••" />
+        </div>
         <div class="field-error" id="login-error"></div>
         <button id="login-btn" class="btn btn--lg" style="margin-top:12px;">Se connecter</button>
+        <p class="hint center" id="register-hint" style="display:none;">
+          Ton compte est perso : tes playlists ne seront visibles que par toi.</p>
       </div>
     </section>
 

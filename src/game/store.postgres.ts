@@ -50,6 +50,14 @@ export class PostgresQuizStore implements QuizRepository {
     `);
     // Migration douce si la table quizzes existait sans owner_id.
     await this.pool.query(`ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS owner_id text`);
+    // Unicité insensible à la casse des noms d'utilisateur (les recherches le sont).
+    try {
+      await this.pool.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (lower(username))`,
+      );
+    } catch (err) {
+      console.warn('Index unique lower(username) non créé :', (err as Error).message);
+    }
     await this.seedDemos();
   }
 
@@ -74,6 +82,25 @@ export class PostgresQuizStore implements QuizRepository {
     );
     const row = rows[0];
     return { id: row.id, username: row.username, passwordHash: row.password_hash };
+  }
+
+  async createUser(username: string, passwordHash: string): Promise<User | null> {
+    // Garde applicative (insensible à la casse) doublée du garde base (index unique).
+    if (await this.getUserByUsername(username)) return null;
+    try {
+      const { rows } = await this.pool.query(
+        `INSERT INTO users (id, username, password_hash)
+         VALUES ($1, $2, $3)
+         RETURNING id, username, password_hash`,
+        [generateId('u'), username, passwordHash],
+      );
+      const row = rows[0];
+      return { id: row.id, username: row.username, passwordHash: row.password_hash };
+    } catch (err) {
+      // 23505 = violation d'unicité (course entre deux inscriptions) : nom pris.
+      if ((err as { code?: string }).code === '23505') return null;
+      throw err;
+    }
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {

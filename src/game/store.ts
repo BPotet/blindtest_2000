@@ -27,6 +27,8 @@ export interface QuizRepository {
 
   // Utilisateurs
   upsertUser(username: string, passwordHash: string): Promise<User>;
+  /** Crée un compte. Renvoie null si le nom est déjà pris (insensible à la casse). */
+  createUser(username: string, passwordHash: string): Promise<User | null>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserById(id: string): Promise<User | undefined>;
 
@@ -76,6 +78,14 @@ export class MemoryQuizStore implements QuizRepository {
       existing.passwordHash = passwordHash;
       return existing;
     }
+    const user: User = { id: generateId('u'), username, passwordHash };
+    this.usersByName.set(username.toLowerCase(), user);
+    this.usersById.set(user.id, user);
+    return user;
+  }
+
+  async createUser(username: string, passwordHash: string): Promise<User | null> {
+    if (this.usersByName.has(username.toLowerCase())) return null;
     const user: User = { id: generateId('u'), username, passwordHash };
     this.usersByName.set(username.toLowerCase(), user);
     this.usersById.set(user.id, user);

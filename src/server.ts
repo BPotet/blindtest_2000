@@ -17,11 +17,13 @@ import {
   kickSchema,
   resumeSchema,
   watchRoomSchema,
+  credentialsSchema,
   createQuizSchema,
   type CreateQuizInput,
 } from './validation';
 import {
   loadAuthConfig,
+  hashPassword,
   verifyPassword,
   verifySession,
   createSession,
@@ -88,6 +90,29 @@ export function buildServer(
   });
 
   // ---- Authentification -------------------------------------------------
+
+  // Inscription libre : n'importe qui peut créer un compte hôte et obtient
+  // aussitôt une session. Chaque hôte ne voit que ses propres playlists (+ démos).
+  app.post('/api/register', async (req, res) => {
+    const parsed = credentialsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid_input', message: parsed.error.issues[0]?.message });
+      return;
+    }
+    const user = await quizRepo.createUser(
+      parsed.data.username,
+      hashPassword(parsed.data.password),
+    );
+    if (!user) {
+      res.status(409).json({ error: 'username_taken', message: 'Ce nom est déjà pris.' });
+      return;
+    }
+    res.setHeader(
+      'Set-Cookie',
+      buildSessionCookie(createSession(user.id, authConfig.sessionSecret), authConfig),
+    );
+    res.status(201).json({ username: user.username });
+  });
 
   app.post('/api/login', async (req, res) => {
     const username = typeof req.body?.username === 'string' ? req.body.username : '';
