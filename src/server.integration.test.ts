@@ -450,3 +450,98 @@ describe('Mode équipes (Socket.IO)', () => {
     expect(joined.teamName).toBe('Verts');
   });
 });
+
+describe('Import YouTube — désactivé (pas de clé)', () => {
+  it('/api/me indique youtubeImport:false et l\'endpoint répond 503', async () => {
+    const me = await fetch(`http://localhost:${port}/api/me`, { headers: { Cookie: cookie } });
+    expect(((await me.json()) as any).youtubeImport).toBe(false);
+    const imp = await fetch(`http://localhost:${port}/api/import/youtube`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ url: 'https://www.youtube.com/playlist?list=PLabcdefghij12' }),
+    });
+    expect(imp.status).toBe(503);
+  });
+});
+
+describe('Import YouTube — actif (fetcher injecté)', () => {
+  let iServer: BuiltServer;
+  let iPort: number;
+  let iCookie: string;
+
+  const fakeFetcher = async (playlistId: string) => {
+    if (playlistId.includes('SAME')) {
+      return [
+        { title: 'Même chanson', videoId: 'aaaaaaaaaaa' },
+        { title: 'Même chanson', videoId: 'bbbbbbbbbbb' },
+      ];
+    }
+    return [
+      { title: 'A-ha - Take On Me (Official Video)', videoId: 'djV11Xbc914' },
+      { title: 'Queen - Bohemian Rhapsody [Remastered]', videoId: 'fJ9rUzIMcZQ' },
+      { title: 'Toto - Africa (Official HD Video)', videoId: 'FTQbiNvZqaY' },
+      { title: 'Europe - The Final Countdown', videoId: '9jK-NcRmVcw' },
+    ];
+  };
+
+  beforeAll(async () => {
+    iServer = buildServer({ authConfig, youtubeFetcher: fakeFetcher });
+    await iServer.quizRepo.upsertUser('admin', hashPassword('admin'));
+    await new Promise<void>((resolve) => iServer.httpServer.listen(0, resolve));
+    iPort = (iServer.httpServer.address() as AddressInfo).port;
+    const res = await fetch(`http://localhost:${iPort}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'admin', password: 'admin' }),
+    });
+    iCookie = (/bt_session=[^;]+/.exec(res.headers.get('set-cookie') ?? '') ?? [''])[0];
+  });
+
+  afterAll(async () => {
+    iServer.io.close();
+    await new Promise<void>((resolve) => iServer.httpServer.close(() => resolve()));
+  });
+
+  const importReq = (body: unknown) =>
+    fetch(`http://localhost:${iPort}/api/import/youtube`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: iCookie },
+      body: JSON.stringify(body),
+    });
+
+  it('signale la disponibilité via /api/me', async () => {
+    const me = await fetch(`http://localhost:${iPort}/api/me`, { headers: { Cookie: iCookie } });
+    expect(((await me.json()) as any).youtubeImport).toBe(true);
+  });
+
+  it('génère un brouillon de quiz (une manche par morceau, QCM auto)', async () => {
+    const res = await importReq({ url: 'https://www.youtube.com/playlist?list=PLgood12345678', title: 'Années 80', maxRounds: 3 });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.title).toBe('Années 80');
+    expect(body.rounds).toHaveLength(3);
+    const r = body.rounds[0];
+    expect(r.options[r.correctIndex]).toBe(r.answerLabel);
+    expect(r.answerLabel).not.toMatch(/official/i); // titre nettoyé
+    expect(r.options.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('exige l\'authentification', async () => {
+    const res = await fetch(`http://localhost:${iPort}/api/import/youtube`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://www.youtube.com/playlist?list=PLgood12345678' }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('rejette un lien de playlist invalide (400)', async () => {
+    const res = await importReq({ url: 'https://youtu.be/dQw4w9WgXcQ' });
+    expect(res.status).toBe(400);
+  });
+
+  it('refuse une playlist aux titres non distincts (422)', async () => {
+    const res = await importReq({ url: 'https://www.youtube.com/playlist?list=PLSAME12345678' });
+    expect(res.status).toBe(422);
+  });
+});

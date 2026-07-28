@@ -23,6 +23,7 @@
     mode: 'solo', // mode choisi pour la prochaine salle
     roomMode: 'solo', // mode de la salle en cours
     combo: true, // bonus de série activé pour la prochaine salle
+    youtubeImport: false, // import de playlist YouTube disponible (clé API côté serveur)
   };
 
   // --- Écran public (fenêtre projetée/partagée) ---------------------------
@@ -246,15 +247,17 @@
   async function checkAuth() {
     try {
       const res = await fetch('/api/me');
-      if (res.ok) { const me = await res.json().catch(() => ({})); onAuthed(me.username); return; }
+      if (res.ok) { const me = await res.json().catch(() => ({})); onAuthed(me.username, me.youtubeImport); return; }
     } catch (_) { /* réseau : on montre le login */ }
     show('screen-login');
   }
 
-  function onAuthed(username) {
+  function onAuthed(username, youtubeImport) {
     state.authed = true;
+    state.youtubeImport = !!youtubeImport;
     $('#logout-btn').style.display = '';
     $('#open-present').style.display = '';
+    $('#toggle-import').style.display = state.youtubeImport ? '' : 'none';
     const label = $('#host-user');
     if (username) { label.textContent = `👤 ${username}`; label.style.display = ''; }
     show('screen-home');
@@ -291,7 +294,7 @@
       const body = await res.json().catch(() => ({}));
       $('#login-password').value = '';
       $('#login-confirm').value = '';
-      onAuthed(body.username || username);
+      onAuthed(body.username || username, body.youtubeImport);
     } catch (_) {
       $('#login-error').textContent = 'Erreur réseau.';
     } finally {
@@ -421,6 +424,63 @@
       $('#save-quiz').textContent = '💾 Mettre à jour';
       $('#builder').scrollIntoView({ behavior: 'smooth' });
     } catch (_) { toast('Erreur réseau.'); }
+  }
+
+  // Import « semi-automatique » : on récupère un brouillon (titre + manches) et
+  // on le charge dans le constructeur pour relecture avant enregistrement.
+  async function doImport() {
+    const url = $('#import-url').value.trim();
+    $('#import-error').textContent = '';
+    if (!url) { $('#import-error').textContent = 'Colle le lien de la playlist YouTube.'; return; }
+    const payload = {
+      url,
+      title: $('#import-title').value.trim(),
+      maxRounds: Number($('#import-max').value) || 15,
+      startSeconds: Number($('#import-start').value) || 0,
+      durationSeconds: Number($('#import-dur').value) || 30,
+    };
+    const btn = $('#run-import');
+    btn.disabled = true;
+    const prev = btn.textContent;
+    btn.textContent = '⏳ Import en cours…';
+    try {
+      const res = await fetch('/api/import/youtube', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { $('#import-error').textContent = body.message || "Échec de l'import."; return; }
+      fillBuilderFromDraft(body.title, body.rounds);
+      $('#import-panel').style.display = 'none';
+      toast(`✅ ${body.count} morceau(x) importé(s) — relis et enregistre.`);
+    } catch (_) {
+      $('#import-error').textContent = 'Erreur réseau.';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
+  }
+
+  // Charge un brouillon importé dans le constructeur (nouveau quiz, non enregistré).
+  function fillBuilderFromDraft(title, rounds) {
+    state.editingQuizId = null;
+    $('#builder').style.display = 'block';
+    $('#builder-heading').textContent = 'Nouveau quiz (importé) — à relire';
+    $('#quiz-title').value = title || '';
+    $('#builder-rounds').innerHTML = '';
+    roundCount = 0;
+    (rounds || []).forEach((r) => addRoundBlock({
+      youtube: r.youtube,
+      startSeconds: r.startSeconds,
+      durationSeconds: r.durationSeconds,
+      question: r.question,
+      options: r.options,
+      correctIndex: r.correctIndex,
+      answerLabel: r.answerLabel,
+    }));
+    $('#save-quiz').textContent = '💾 Enregistrer le quiz';
+    $('#builder').scrollIntoView({ behavior: 'smooth' });
   }
 
   async function deleteQuiz(id, title) {
@@ -719,6 +779,14 @@
       b.style.display = 'none';
     }
   };
+  $('#toggle-import').onclick = () => {
+    const p = $('#import-panel');
+    const hidden = p.style.display === 'none' || p.style.display === '';
+    p.style.display = hidden ? 'block' : 'none';
+    if (hidden) { $('#import-error').textContent = ''; $('#import-url').focus(); }
+  };
+  $('#run-import').onclick = doImport;
+  $('#import-url').addEventListener('keydown', (e) => { if (e.key === 'Enter') doImport(); });
   $('#add-round').onclick = () => addRoundBlock();
   $('#builder-rounds').addEventListener('click', onBuilderRoundsClick);
   $('#save-quiz').onclick = saveQuiz;

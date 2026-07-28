@@ -18,9 +18,17 @@ import {
   resumeSchema,
   watchRoomSchema,
   credentialsSchema,
+  importYoutubeSchema,
   createQuizSchema,
   type CreateQuizInput,
 } from './validation';
+import {
+  parseYouTubePlaylistId,
+  buildRoundsFromVideos,
+  fetchPlaylistVideos,
+  YouTubeImportError,
+  type PlaylistVideo,
+} from './game/youtube-import';
 import {
   loadAuthConfig,
   hashPassword,
@@ -59,7 +67,12 @@ export interface BuiltServer {
  * `quizRepo` peut être injecté (Postgres en prod) ; par défaut, stockage mémoire.
  */
 export function buildServer(
-  opts: { quizRepo?: QuizRepository; authConfig?: AuthConfig } = {},
+  opts: {
+    quizRepo?: QuizRepository;
+    authConfig?: AuthConfig;
+    youtubeApiKey?: string;
+    youtubeFetcher?: (playlistId: string) => Promise<PlaylistVideo[]>;
+  } = {},
 ): BuiltServer {
   const app = express();
   app.use(express.json({ limit: '256kb' }));
@@ -67,6 +80,14 @@ export function buildServer(
   const quizRepo = opts.quizRepo ?? new MemoryQuizStore();
   const authConfig = opts.authConfig ?? loadAuthConfig();
   const roomManager = new RoomManager();
+
+  // Import YouTube : actif seulement si une clé API est fournie (ou un fetcher
+  // injecté en test). Sinon l'endpoint répond 503 et l'UI masque la fonction.
+  const youtubeApiKey = opts.youtubeApiKey ?? process.env.YOUTUBE_API_KEY;
+  const youtubeFetcher =
+    opts.youtubeFetcher ??
+    (youtubeApiKey ? (id: string) => fetchPlaylistVideos(id, youtubeApiKey) : null);
+  const youtubeImportEnabled = Boolean(youtubeFetcher);
 
   const sessionUserId = (req: Request): string | null => {
     const cookies = parseCookies(req.headers.cookie);
@@ -111,7 +132,7 @@ export function buildServer(
       'Set-Cookie',
       buildSessionCookie(createSession(user.id, authConfig.sessionSecret), authConfig),
     );
-    res.status(201).json({ username: user.username });
+    res.status(201).json({ username: user.username, youtubeImport: youtubeImportEnabled });
   });
 
   app.post('/api/login', async (req, res) => {
@@ -126,7 +147,7 @@ export function buildServer(
       'Set-Cookie',
       buildSessionCookie(createSession(user.id, authConfig.sessionSecret), authConfig),
     );
-    res.json({ username: user.username });
+    res.json({ username: user.username, youtubeImport: youtubeImportEnabled });
   });
 
   app.post('/api/logout', (_req, res) => {
@@ -141,7 +162,52 @@ export function buildServer(
       res.status(401).json({ error: 'unauthenticated' });
       return;
     }
-    res.json({ username: user.username });
+    res.json({ username: user.username, youtubeImport: youtubeImportEnabled });
+  });
+
+  // Import « semi-automatique » d'une playlist YouTube -> brouillon de quiz que
+  // l'hôte relit dans le constructeur avant d'enregistrer.
+  app.post('/api/import/youtube', requireAuth, async (req, res) => {
+    if (!youtubeFetcher) {
+      res.status(503).json({
+        error: 'import_disabled',
+        message: "L'import YouTube n'est pas configuré sur ce serveur (variable YOUTUBE_API_KEY).",
+      });
+      return;
+    }
+    const parsed = importYoutubeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid_input', message: parsed.error.issues[0]?.message });
+      return;
+    }
+    const playlistId = parseYouTubePlaylistId(parsed.data.url);
+    if (!playlistId) {
+      res.status(400).json({ error: 'invalid_playlist', message: 'Lien de playlist YouTube invalide.' });
+      return;
+    }
+    try {
+      const videos = await youtubeFetcher(playlistId);
+      const rounds = buildRoundsFromVideos(videos, {
+        startSeconds: parsed.data.startSeconds,
+        durationSeconds: parsed.data.durationSeconds,
+        maxRounds: parsed.data.maxRounds,
+      });
+      if (rounds.length === 0 || rounds.some((r) => r.options.length < 2)) {
+        res.status(422).json({
+          error: 'not_enough',
+          message: 'Playlist trop courte ou titres trop similaires (2 morceaux distincts minimum).',
+        });
+        return;
+      }
+      res.json({ title: parsed.data.title?.trim() || 'Blindtest importé', rounds, count: rounds.length });
+    } catch (err) {
+      if (err instanceof YouTubeImportError) {
+        // 404 = lien fautif (client) ; le reste = souci en amont.
+        res.status(err.status === 404 ? 404 : 502).json({ error: 'import_failed', message: err.message });
+        return;
+      }
+      res.status(502).json({ error: 'import_failed', message: "Échec de l'import YouTube." });
+    }
   });
 
   app.get('/api/quizzes', requireAuth, async (_req, res) => {

@@ -11,6 +11,15 @@ export const createRoomSchema = z.object({
   combo: z.boolean().optional(),
 });
 
+// Import « semi-automatique » d'un blindtest depuis une playlist YouTube.
+export const importYoutubeSchema = z.object({
+  url: z.string().min(1).max(500),
+  title: z.string().max(120).optional(),
+  startSeconds: z.number().int().min(0).max(36000).optional(),
+  durationSeconds: z.number().int().min(5).max(60).optional(),
+  maxRounds: z.number().int().min(1).max(30).optional(),
+});
+
 // Inscription / connexion d'un compte hôte. Nom sobre (lettres/chiffres/._-),
 // mot de passe d'au moins 6 caractères.
 export const credentialsSchema = z.object({

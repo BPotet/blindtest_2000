@@ -64,7 +64,29 @@
       <div class="card">
         <div class="btn-row">
           <button id="toggle-builder" class="btn btn--ghost">➕ Créer mon propre quiz</button>
+          <button id="toggle-import" class="btn btn--ghost" style="display:none;">📥 Importer une playlist YouTube</button>
         </div>
+
+        <div id="import-panel" style="display:none; margin-top:18px;">
+          <h2>Importer depuis une playlist YouTube</h2>
+          <p class="muted">Colle le lien d'une playlist YouTube <strong>sur un thème</strong> : on fabrique
+            automatiquement un QCM par morceau (les mauvaises réponses sont d'autres titres de la playlist).</p>
+          <label for="import-url">Lien de la playlist YouTube</label>
+          <input id="import-url" placeholder="https://www.youtube.com/playlist?list=..." />
+          <label for="import-title">Titre du blindtest</label>
+          <input id="import-title" placeholder="Ex. Spécial années 80" />
+          <div style="display:flex; gap:10px;">
+            <div style="flex:1"><label for="import-max">Morceaux (max)</label><input id="import-max" type="number" min="1" max="30" value="15" /></div>
+            <div style="flex:1"><label for="import-start">Départ (s)</label><input id="import-start" type="number" min="0" value="30" /></div>
+            <div style="flex:1"><label for="import-dur">Durée (s)</label><input id="import-dur" type="number" min="5" max="60" value="30" /></div>
+          </div>
+          <div class="field-error" id="import-error"></div>
+          <div class="btn-row" style="margin-top:12px;">
+            <button id="run-import" class="btn btn--success">✨ Générer le blindtest</button>
+          </div>
+          <p class="hint">Tu pourras <strong>tout relire et ajuster</strong> (départs, titres, ordre) avant d'enregistrer.</p>
+        </div>
+
         <div id="builder" style="display:none; margin-top:18px;">
           <h2 id="builder-heading">Nouveau quiz</h2>
           <label for="quiz-title">Titre du quiz</label>

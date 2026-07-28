@@ -46,6 +46,12 @@ inclus et ce qui viendra ensuite.
   communes). Voir [Comptes hôte](#-comptes-hôte-plusieurs-organisateurs).
 - **Quiz de démonstration** livrés d'origine + **création, édition et
   suppression** de ses propres playlists depuis l'interface.
+- **Import d'une playlist YouTube** (semi-automatique) : colle le lien d'une
+  playlist **thématique**, et l'app fabrique **un QCM par morceau** — la bonne
+  réponse est le titre, les mauvaises sont d'autres titres de la playlist (donc
+  plausibles et dans le thème). Tu relis/ajustes dans le constructeur avant
+  d'enregistrer. Nécessite une clé API YouTube (voir
+  [Import de playlist](#-import-de-playlist-youtube)).
 - **Bonus de série (combo)** : points bonus croissants pour les bonnes réponses
   consécutives (+100 par palier, plafonné à +500), **activable/désactivable par
   l'hôte** à l'ouverture de la salle.
@@ -128,6 +134,35 @@ l'environnement (pratique comme premier accès) :
 > mémoire et repartent à zéro au redémarrage (seul le compte admin de
 > l'environnement revient).
 
+## 📥 Import de playlist YouTube
+
+Depuis l'écran d'accueil de l'hôte, **« 📥 Importer une playlist YouTube »** :
+colle le lien d'une playlist **thématique**, choisis le nombre de morceaux, le
+point de départ et la durée, puis **« ✨ Générer le blindtest »**. L'app :
+
+1. récupère les **titres** de la playlist via l'API officielle **YouTube Data
+   API v3** (métadonnées seulement — aucune extraction/téléchargement audio) ;
+2. nettoie les titres (retire « (Official Video) », « [Remastered] »…) ;
+3. crée **une manche par morceau** avec un QCM : bonne réponse = le titre,
+   mauvaises réponses = d'autres titres **de la même playlist** ;
+4. **pré-remplit le constructeur** pour que tu **relises et ajustes** (départs,
+   titres, ordre) avant d'enregistrer.
+
+Cette fonction n'apparaît que si une **clé API YouTube** est configurée :
+
+| Variable | Rôle |
+|---|---|
+| `YOUTUBE_API_KEY` | Clé de l'API YouTube Data v3 (gratuite, quota large) |
+
+**Obtenir la clé (une fois, ~5 min)** : [Google Cloud Console](https://console.cloud.google.com/)
+→ crée un projet → **APIs & Services → Library** → active **YouTube Data API
+v3** → **Credentials → Create credentials → API key** → copie la clé. Sur Render :
+**Environment** → ajoute `YOUTUBE_API_KEY`. (Sans clé, tout le reste fonctionne ;
+seul l'import est masqué.)
+
+> La playlist doit être **publique ou non répertoriée** (pas privée). L'appel ne
+> fait que **lire la liste des vidéos** : rien n'est téléchargé.
+
 ## 🧪 Tests
 
 Pyramide de tests (rapide, sans dépendance externe) :
@@ -208,6 +243,7 @@ src/
     quizzes.ts          # quiz de démonstration
     store.ts            # stockage en mémoire des quiz
     youtube.ts          # extraction de l'ID vidéo depuis une URL/ID
+    youtube-import.ts   # import de playlist YouTube -> brouillon de quiz (QCM auto)
   *.test.ts             # tests unitaires + intégration (vitest)
 public/
   index.html            # écran hôte (contrôle + vidéo)   join.html  # écran joueur (mobile)
