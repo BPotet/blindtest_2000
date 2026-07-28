@@ -58,6 +58,11 @@
           <button id="combo-on" type="button" class="chip-btn active">🔥 Activé</button>
           <button id="combo-off" type="button" class="chip-btn">Désactivé</button>
         </div>
+        <div class="mode-select">
+          <span class="muted">Partie automatique (l'hôte joue aussi) :</span>
+          <button id="auto-on" type="button" class="chip-btn">🎮 Oui</button>
+          <button id="auto-off" type="button" class="chip-btn active">Non</button>
+        </div>
         <div id="quiz-list" class="quiz-list"><p class="muted">Chargement des quiz…</p></div>
       </div>
 
@@ -124,6 +129,9 @@
           <button id="start-game" class="btn btn--lg btn--success" disabled>▶️ Démarrer la partie</button>
         </div>
         <p class="hint center" id="start-hint">En attente d'au moins un joueur…</p>
+        <p class="hint center" id="lobby-auto-hint" style="display:none;">🎮 <strong>Partie automatique</strong> :
+          rejoins <strong>toi aussi sur ton téléphone</strong> (scanne le QR) — la vidéo est masquée sur cet
+          écran et la partie s'enchaîne toute seule.</p>
         <p class="hint center">🖥️ Ouvre l'<strong>Écran public</strong> (bouton en haut) et projette / partage
           <strong>cette fenêtre-là</strong> : la vidéo YouTube reste privée sur cet écran de contrôle.</p>
       </div>
@@ -136,14 +144,24 @@
           <h2 id="round-progress">Manche</h2>
           <div class="timer" id="round-timer">--</div>
         </div>
-        <div class="yt-wrap"><div id="yt-player"></div></div>
+        <div class="yt-wrap">
+          <div id="yt-player"></div>
+          <!-- Mode auto : masque la vidéo (l'écran est projeté et l'hôte joue), l'audio continue. -->
+          <div id="yt-cover" class="yt-cover" style="display:none;" aria-hidden="true">
+            <div class="eq">
+              <span></span><span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <p class="audio-stage__label">🎧 À l'écoute… l'hôte joue aussi</p>
+          </div>
+        </div>
         <div class="progress"><div class="progress__bar" id="round-bar"></div></div>
         <h2 id="round-question" class="center"></h2>
         <div class="options" id="round-options"></div>
         <p class="center" style="margin-top:16px;">
           Réponses reçues : <span class="count-pill" id="answer-count">0 / 0</span>
         </p>
-        <div class="btn-row" style="margin-top:16px;">
+        <div class="btn-row" id="manual-controls" style="margin-top:16px;">
           <button id="replay-clip" class="btn btn--ghost">🔁 Rejouer</button>
           <button id="pause-round" class="btn btn--ghost">⏸️ Pause</button>
           <button id="skip-round" class="btn btn--ghost">⏭️ Passer</button>
@@ -170,6 +188,7 @@
       <div class="card">
         <h2>Classement</h2>
         <div class="leaderboard" id="result-leaderboard"></div>
+        <p class="hint center" id="auto-next-hint" style="display:none; font-size:16px; margin-top:16px;"></p>
         <div class="btn-row" style="margin-top:20px;">
           <button id="next-round" class="btn btn--lg btn--success">▶️ Manche suivante</button>
           <button id="end-game" class="btn btn--lg btn--ghost">🏁 Terminer la partie</button>

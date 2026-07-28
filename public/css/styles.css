@@ -304,6 +304,13 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
 .podium-col.rank-1 .podium-rank, .podium-col.rank-2 .podium-rank, .podium-col.rank-3 .podium-rank { color: #0f172a; }
 .podium-col.me .podium-name { color: var(--accent-2); }
 
+/* Mode auto : couvre la vidéo (audio seul) sur l'écran de l'hôte projeté. */
+.yt-cover {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+}
+
 /* Écran public (projeté / partagé) — visualiseur audio à la place de la vidéo */
 .app--wide { max-width: 1280px; }
 .audio-stage {

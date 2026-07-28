@@ -23,8 +23,12 @@
     mode: 'solo', // mode choisi pour la prochaine salle
     roomMode: 'solo', // mode de la salle en cours
     combo: true, // bonus de série activé pour la prochaine salle
+    autoplay: false, // partie automatique : l'hôte joue aussi, la partie s'enchaîne seule
+    autoTimer: null, // timer d'enchaînement automatique des manches
     youtubeImport: false, // import de playlist YouTube disponible (clé API côté serveur)
   };
+
+  const AUTO_NEXT_MS = 6000; // délai avant l'enchaînement auto de la manche suivante
 
   // --- Écran public (fenêtre projetée/partagée) ---------------------------
   // Piloté par BroadcastChannel (même origine, même navigateur) : la vidéo
@@ -562,7 +566,8 @@
     state.code = p.code;
     state.hostToken = p.hostToken;
     state.roomMode = p.mode || 'solo';
-    localStorage.setItem('bt_host', JSON.stringify({ code: p.code, hostToken: p.hostToken }));
+    // On mémorise aussi le mode auto (purement côté hôte) pour le restaurer au rechargement.
+    localStorage.setItem('bt_host', JSON.stringify({ code: p.code, hostToken: p.hostToken, autoplay: state.autoplay }));
     enterLobby(p.quizTitle, p.players, p.teams);
   });
 
@@ -594,11 +599,17 @@
   socket.on('room:players', (p) => updatePlayers(p.players, p.teams));
 
   socket.on('host:roundStarted', (p) => {
+    cancelAutoNext();
     state.round = p.hostRound;
     state.clipStarted = false;
     state.paused = false;
     $('#pause-round').textContent = '⏸️ Pause';
     show('screen-round');
+    // Mode auto : la vidéo est masquée (l'écran de l'hôte est projeté et l'hôte
+    // joue), les contrôles manuels disparaissent (tout s'enchaîne tout seul).
+    $('#yt-cover').style.display = state.autoplay ? 'flex' : 'none';
+    $('#manual-controls').style.display = state.autoplay ? 'none' : '';
+    $('#reveal-answer').style.display = state.autoplay ? 'none' : '';
     $('#round-progress').textContent = `Manche ${p.hostRound.roundIndex + 1} / ${p.hostRound.totalRounds}`;
     $('#round-question').textContent = p.hostRound.question;
     $('#answer-count').textContent = `0 / ${p.playerCount}`;
@@ -647,7 +658,8 @@
       const unit = state.roomMode === 'teams' ? 'équipes ont trouvé' : 'ont trouvé';
       $('#result-correct-count').textContent = `${p.correctCount} / ${p.totalPlayers} ${unit}`;
       renderLeaderboard($('#result-leaderboard'), p.leaderboard, null);
-      $('#next-round').style.display = p.isLastRound ? 'none' : '';
+      $('#next-round').style.display = state.autoplay || p.isLastRound ? 'none' : '';
+      if (state.autoplay) startAutoNext(p.isLastRound);
       presentScene('result', {
         skipped: false,
         answerLabel: p.answerLabel,
@@ -669,11 +681,42 @@
     $('#result-distribution').innerHTML = '';
     $('#result-correct-count').textContent = '';
     renderLeaderboard($('#result-leaderboard'), p.leaderboard, null);
-    $('#next-round').style.display = p.isLastRound ? 'none' : '';
+    $('#next-round').style.display = state.autoplay || p.isLastRound ? 'none' : '';
+    if (state.autoplay) startAutoNext(p.isLastRound);
     presentScene('result', { skipped: true, leaderboard: p.leaderboard, mode: state.roomMode });
   });
 
+  // Mode auto : enchaîne seul la manche suivante (ou termine) après un court délai.
+  function startAutoNext(isLastRound) {
+    cancelAutoNext();
+    const hint = $('#auto-next-hint');
+    let remaining = Math.round(AUTO_NEXT_MS / 1000);
+    const label = () => {
+      hint.textContent = isLastRound
+        ? `🏁 Classement final dans ${remaining}…`
+        : `⏭️ Manche suivante dans ${remaining}…`;
+    };
+    hint.style.display = '';
+    label();
+    state.autoTimer = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        cancelAutoNext();
+        socket.emit(isLastRound ? 'host:endGame' : 'host:startRound');
+      } else {
+        label();
+      }
+    }, 1000);
+  }
+
+  function cancelAutoNext() {
+    if (state.autoTimer) { clearInterval(state.autoTimer); state.autoTimer = null; }
+    const hint = $('#auto-next-hint');
+    if (hint) hint.style.display = 'none';
+  }
+
   socket.on('game:ended', (p) => {
+    cancelAutoNext();
     show('screen-ended');
     window.App.renderPodium($('#final-podium'), p.leaderboard, null);
     const rest = p.leaderboard.slice(3);
@@ -693,8 +736,10 @@
   // --- Écrans -------------------------------------------------------------
   function enterLobby(quizTitle, players, teams) {
     show('screen-lobby');
-    const suffix = state.roomMode === 'teams' ? ' · mode équipes' : '';
+    const suffix = (state.roomMode === 'teams' ? ' · mode équipes' : '') + (state.autoplay ? ' · auto 🎮' : '');
     $('#lobby-quiz-title').textContent = (quizTitle || '') + suffix;
+    // Mode auto : rappelle à l'hôte de rejoindre sur son téléphone (il joue aussi).
+    $('#lobby-auto-hint').style.display = state.autoplay ? '' : 'none';
     $('#lobby-code').textContent = state.code;
     $('#lobby-code-inline').textContent = state.code;
     $('#lobby-qr').src = `/api/room/${state.code}/qr`;
@@ -780,6 +825,12 @@
     $('#combo-off').classList.toggle('active', !on);
   }
 
+  function setAuto(on) {
+    state.autoplay = on;
+    $('#auto-on').classList.toggle('active', on);
+    $('#auto-off').classList.toggle('active', !on);
+  }
+
   // --- Contrôles ----------------------------------------------------------
   $('#toggle-builder').onclick = () => {
     const b = $('#builder');
@@ -808,11 +859,13 @@
   $('#pause-round').onclick = togglePause;
   $('#skip-round').onclick = () => { if (window.confirm('Passer cette manche (aucun point) ?')) socket.emit('host:skipRound'); };
   $('#next-round').onclick = () => socket.emit('host:startRound');
-  $('#end-game').onclick = () => socket.emit('host:endGame');
+  $('#end-game').onclick = () => { cancelAutoNext(); socket.emit('host:endGame'); };
   $('#mode-solo').onclick = () => setMode('solo');
   $('#mode-teams').onclick = () => setMode('teams');
   $('#combo-on').onclick = () => setCombo(true);
   $('#combo-off').onclick = () => setCombo(false);
+  $('#auto-on').onclick = () => setAuto(true);
+  $('#auto-off').onclick = () => setAuto(false);
   $('#tab-login').onclick = () => setAuthMode('login');
   $('#tab-register').onclick = () => setAuthMode('register');
   $('#login-btn').onclick = doAuth;
@@ -827,9 +880,10 @@
     const raw = localStorage.getItem('bt_host');
     if (!raw) return;
     try {
-      const { code, hostToken } = JSON.parse(raw);
+      const { code, hostToken, autoplay } = JSON.parse(raw);
       if (code && hostToken) {
         state.hostToken = hostToken;
+        state.autoplay = !!autoplay;
         socket.emit('host:reconnect', { code, hostToken });
       }
     } catch (_) { localStorage.removeItem('bt_host'); }

@@ -53,6 +53,13 @@ inclus et ce qui viendra ensuite.
   les morceaux** — il les découvre en jouant, comme les joueurs (ou mode
   **relecture** pour tout vérifier). Nécessite une clé API YouTube (voir
   [Import de playlist](#-import-de-playlist-youtube)).
+- **Partie automatique (l'hôte joue aussi)** : mode au choix à l'ouverture de la
+  salle. L'écran de l'hôte devient le **grand écran** — la **vidéo est masquée**
+  (audio seul, visualiseur animé) pour ne pas dévoiler le morceau — et la partie
+  **s'enchaîne toute seule** (révélation automatique, manche suivante automatique,
+  podium final). L'hôte **rejoint sur son téléphone** comme un joueur : il ne
+  connaît pas les réponses et **joue à égalité** avec les autres. Un seul clic
+  **Démarrer** au début (nécessaire pour l'audio), puis plus rien à toucher.
 - **Bonus de série (combo)** : points bonus croissants pour les bonnes réponses
   consécutives (+100 par palier, plafonné à +500), **activable/désactivable par
   l'hôte** à l'ouverture de la salle.
