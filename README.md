@@ -19,10 +19,17 @@ inclus et ce qui viendra ensuite.
   embarqué sur son écran, puis la réponse est révélée avec le classement.
 - **Écran public à projeter / partager** : un second écran (bouton **🖥️ Écran
   public**) affiche le code, le QR, le minuteur, la question, les propositions et
-  le classement — **mais jamais la vidéo YouTube**. L'hôte garde sa fenêtre de
-  contrôle (avec la vidéo) sur son écran privé et projette / partage l'écran
-  public, pour ne **pas dévoiler le morceau** avant la réponse. Les deux fenêtres
-  se synchronisent en direct (même navigateur, via `BroadcastChannel`).
+  le classement — **mais jamais la vidéo YouTube**. Les **propositions n'y
+  apparaissent qu'au démarrage réel du morceau** (pas de spoiler pendant le
+  chargement). L'hôte garde sa fenêtre de contrôle (avec la vidéo) sur son écran
+  privé et projette / partage l'écran public, pour ne **pas dévoiler le morceau**
+  avant la réponse. Les deux fenêtres se synchronisent en direct (même
+  navigateur, via `BroadcastChannel`).
+- **Configuration à l'ouverture de la salle** : cliquer *Ouvrir une salle* ouvre
+  une **modale** récapitulant et laissant régler le mode (Individuel/Équipes), le
+  combo, la partie automatique et son délai — pour lancer en connaissance de cause.
+- **Aperçu des extraits dans le constructeur** : un bouton **▶️ Aperçu** par
+  manche joue l'extrait au bon timestamp, pour se rappeler quel est le morceau.
 - **Joueurs** (mobile) : rejoignent avec un code + un pseudo, répondent au QCM (le
   premier tap verrouille la réponse), voient s'ils ont eu bon/faux, les points
   gagnés et leur place au classement.

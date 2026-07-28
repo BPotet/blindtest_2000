@@ -133,6 +133,25 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
 .quiz-item__title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .badge { font-size: 12px; color: var(--text-muted); }
 
+/* Modales (config de salle, aperçu d'extrait) */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0, 0, 0, 0.62);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+  animation: fade 0.18s ease;
+}
+.modal {
+  background: var(--surface); border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius); padding: clamp(18px, 3vw, 28px);
+  box-shadow: var(--shadow); width: 100%; max-width: 480px; max-height: 92vh; overflow-y: auto;
+}
+#preview-modal .modal { max-width: 760px; }
+.room-summary {
+  margin-top: 14px; padding: 12px 14px; background: var(--surface-2);
+  border-radius: var(--radius-sm); font-weight: 700; text-align: center;
+}
+.r-preview { flex-shrink: 0; }
+
 /* Onglets connexion / inscription */
 .auth-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
 .auth-tabs .chip-btn { flex: 1; text-align: center; }

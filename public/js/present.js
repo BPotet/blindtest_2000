@@ -13,6 +13,7 @@
 
   const channel = new BroadcastChannel('bt-present');
   let mode = 'solo';
+  let lastRoundOptions = []; // propositions de la manche, dévoilées seulement au vrai départ
 
   function renderPlayers(players, teams) {
     const box = $('#p-lobby-players');
@@ -102,7 +103,21 @@
       $('#p-answer-count').textContent = `0 / ${m.playerCount}`;
       $('#p-round-timer').textContent = '…';
       $('#p-round-bar').style.width = '100%';
-      renderOptions(m.options);
+      lastRoundOptions = m.options || [];
+      if (m.started) {
+        $('#p-audio-label').textContent = '🎵 À l\'écoute…';
+        renderOptions(lastRoundOptions);
+      } else {
+        // Le morceau n'a pas encore démarré : on ne dévoile PAS les propositions.
+        $('#p-audio-label').textContent = '🎧 Prépare-toi…';
+        $('#p-round-options').innerHTML = '';
+      }
+    },
+
+    // Le morceau démarre réellement : on dévoile les propositions.
+    roundGo() {
+      $('#p-audio-label').textContent = '🎵 À l\'écoute…';
+      renderOptions(lastRoundOptions);
     },
 
     timer(m) { updateTimer(m.remaining, m.total); },

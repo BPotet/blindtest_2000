@@ -125,7 +125,16 @@
     state.clipStarted = true;
     clearTimeout(state.clipFallback);
     socket.emit('host:clipStarted');
+    presentRoundGo(); // dévoile les propositions sur l'écran public (pas avant !)
     startCountdown(state.round.durationSeconds);
+  }
+
+  // Dévoile les propositions sur l'écran public au vrai départ du morceau.
+  function presentRoundGo() {
+    if (pres.scene === 'round') {
+      pres.data.started = true;
+      sendPresent({ type: 'roundGo' });
+    }
   }
 
   function startCountdown(total) {
@@ -204,7 +213,7 @@
         const open = document.createElement('button');
         open.className = 'btn';
         open.textContent = 'Ouvrir une salle';
-        open.onclick = () => socket.emit('host:createRoom', { quizId: q.id, mode: state.mode, combo: state.combo });
+        open.onclick = () => openRoomConfig(q.id, q.title);
         actions.appendChild(open);
 
         if (!q.isDemo) {
@@ -333,7 +342,11 @@
       `<button type="button" class="btn btn--ghost btn--sm r-down" aria-label="Descendre la manche" title="Descendre">↓</button>` +
       `<button type="button" class="btn btn--ghost btn--sm r-del" aria-label="Supprimer la manche" title="Supprimer">🗑️</button>` +
       `</div></div>` +
-      `<label>Lien YouTube (ou ID)</label><input class="r-yt" placeholder="https://youtu.be/..." value="${escapeHtml(d?.youtube ?? '')}" />` +
+      `<label>Lien YouTube (ou ID)</label>` +
+      `<div style="display:flex; gap:8px; align-items:center;">` +
+      `<input class="r-yt" style="flex:1" placeholder="https://youtu.be/..." value="${escapeHtml(d?.youtube ?? '')}" />` +
+      `<button type="button" class="btn btn--ghost btn--sm r-preview" title="Écouter l'extrait pour te rappeler le morceau">▶️ Aperçu</button>` +
+      `</div>` +
       `<div style="display:flex; gap:10px;">` +
       `<div style="flex:1"><label>Départ (s)</label><input class="r-start" type="number" min="0" value="${d?.startSeconds ?? 0}" /></div>` +
       `<div style="flex:1"><label>Durée (s)</label><input class="r-dur" type="number" min="5" max="60" value="${d?.durationSeconds ?? 20}" /></div></div>` +
@@ -394,6 +407,7 @@
     if (btn.classList.contains('r-up')) moveRound(block, -1);
     else if (btn.classList.contains('r-down')) moveRound(block, 1);
     else if (btn.classList.contains('r-del')) removeRound(block);
+    else if (btn.classList.contains('r-preview')) previewRound(block);
   }
 
   function resetBuilder() {
@@ -624,6 +638,7 @@
       options: p.hostRound.options,
       playerCount: p.playerCount,
       mode: state.roomMode,
+      started: false, // propositions dévoilées seulement à onClipStarted
     });
     if (p.hostRound.roundIndex === 0) {
       // 1re manche : décompte « 3·2·1 » PUIS lecture.
@@ -837,18 +852,93 @@
     state.mode = m;
     $('#mode-solo').classList.toggle('active', m === 'solo');
     $('#mode-teams').classList.toggle('active', m === 'teams');
+    updateRoomSummary();
   }
 
   function setCombo(on) {
     state.combo = on;
     $('#combo-on').classList.toggle('active', on);
     $('#combo-off').classList.toggle('active', !on);
+    updateRoomSummary();
   }
 
   function setAuto(on) {
     state.autoplay = on;
     $('#auto-on').classList.toggle('active', on);
     $('#auto-off').classList.toggle('active', !on);
+    $('#auto-delay-row').style.display = on ? '' : 'none';
+    updateRoomSummary();
+  }
+
+  // --- Modale de configuration de la salle -------------------------------
+  function updateRoomSummary() {
+    const el = $('#room-config-summary');
+    if (!el) return;
+    const parts = [
+      state.mode === 'teams' ? '👥 Équipes' : '👤 Individuel',
+      state.combo ? '🔥 Combo' : 'Sans combo',
+      state.autoplay ? `🎮 Auto (${clampAutoDelay($('#auto-delay').value)}s d'attente)` : '🎬 Partie manuelle',
+    ];
+    el.textContent = parts.join('  ·  ');
+  }
+
+  function openRoomConfig(quizId, quizTitle) {
+    state.pendingQuizId = quizId;
+    $('#room-config-title').textContent = `Configurer « ${quizTitle} »`;
+    $('#auto-delay-row').style.display = state.autoplay ? '' : 'none';
+    updateRoomSummary();
+    $('#room-config-modal').style.display = 'flex';
+  }
+
+  function closeRoomConfig() {
+    $('#room-config-modal').style.display = 'none';
+  }
+
+  function confirmRoomConfig() {
+    if (!state.pendingQuizId) return;
+    state.autoDelay = clampAutoDelay($('#auto-delay').value);
+    socket.emit('host:createRoom', { quizId: state.pendingQuizId, mode: state.mode, combo: state.combo });
+    closeRoomConfig();
+  }
+
+  // --- Aperçu d'un extrait (pour se rappeler le morceau) -----------------
+  function parseYtId(input) {
+    const v = String(input || '').trim();
+    if (!v) return null;
+    if (/^[A-Za-z0-9_-]{11}$/.test(v)) return v;
+    try {
+      const url = new URL(v.includes('://') ? v : `https://${v}`);
+      const host = url.hostname.replace(/^www\./, '');
+      if (host === 'youtu.be') {
+        const id = url.pathname.split('/').filter(Boolean)[0];
+        return /^[A-Za-z0-9_-]{11}$/.test(id || '') ? id : null;
+      }
+      const vp = url.searchParams.get('v');
+      if (vp && /^[A-Za-z0-9_-]{11}$/.test(vp)) return vp;
+      const seg = url.pathname.split('/').filter(Boolean);
+      const m = seg.findIndex((s) => s === 'embed' || s === 'shorts' || s === 'v');
+      if (m >= 0 && /^[A-Za-z0-9_-]{11}$/.test(seg[m + 1] || '')) return seg[m + 1];
+    } catch (_) { /* pas une URL */ }
+    return null;
+  }
+
+  function openPreview(id, startSeconds) {
+    const start = Math.max(0, Math.round(Number(startSeconds) || 0));
+    $('#preview-player').innerHTML =
+      `<iframe src="https://www.youtube.com/embed/${id}?start=${start}&autoplay=1&rel=0" ` +
+      `allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+    $('#preview-modal').style.display = 'flex';
+  }
+
+  function closePreview() {
+    $('#preview-player').innerHTML = ''; // vide l'iframe -> stoppe la lecture
+    $('#preview-modal').style.display = 'none';
+  }
+
+  function previewRound(block) {
+    const id = parseYtId($('.r-yt', block).value);
+    if (!id) { toast('Lien YouTube invalide — colle une URL ou un ID valide.'); return; }
+    openPreview(id, $('.r-start', block).value);
   }
 
   // --- Contrôles ----------------------------------------------------------
@@ -882,7 +972,12 @@
   $('#end-game').onclick = () => { cancelAutoNext(); socket.emit('host:endGame'); };
   $('#cancel-game').onclick = cancelGame;
   $('#cancel-game-2').onclick = cancelGame;
-  $('#auto-delay').addEventListener('change', () => { state.autoDelay = clampAutoDelay($('#auto-delay').value); $('#auto-delay').value = state.autoDelay; });
+  $('#auto-delay').addEventListener('change', () => { state.autoDelay = clampAutoDelay($('#auto-delay').value); $('#auto-delay').value = state.autoDelay; updateRoomSummary(); });
+  $('#room-config-confirm').onclick = confirmRoomConfig;
+  $('#room-config-cancel').onclick = closeRoomConfig;
+  $('#room-config-modal').addEventListener('click', (e) => { if (e.target.id === 'room-config-modal') closeRoomConfig(); });
+  $('#preview-close').onclick = closePreview;
+  $('#preview-modal').addEventListener('click', (e) => { if (e.target.id === 'preview-modal') closePreview(); });
   $('#mode-solo').onclick = () => setMode('solo');
   $('#mode-teams').onclick = () => setMode('teams');
   $('#combo-on').onclick = () => setCombo(true);
