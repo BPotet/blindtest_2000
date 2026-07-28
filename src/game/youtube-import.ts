@@ -118,7 +118,7 @@ export function buildRoundsFromVideos(
 ): DraftRound[] {
   const startSeconds = clampInt(opts.startSeconds, 0, 36000, 30);
   const durationSeconds = clampInt(opts.durationSeconds, 5, 60, 30);
-  const maxRounds = clampInt(opts.maxRounds, 1, 30, 20);
+  const maxRounds = clampInt(opts.maxRounds, 1, 100, 20);
   const question = opts.question?.trim() || 'Quel est ce morceau ?';
 
   // Nettoyage, repli sur le titre brut si le nettoyage vide tout, filtrage.

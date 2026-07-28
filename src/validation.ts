@@ -21,7 +21,7 @@ export const importYoutubeSchema = z.object({
   title: z.string().max(120).optional(),
   startSeconds: z.number().int().min(0).max(36000).optional(),
   durationSeconds: z.number().int().min(5).max(60).optional(),
-  maxRounds: z.number().int().min(1).max(30).optional(),
+  maxRounds: z.number().int().min(1).max(100).optional(),
   save: z.boolean().optional(),
 });
 
