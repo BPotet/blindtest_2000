@@ -17,6 +17,12 @@ inclus et ce qui viendra ensuite.
 - **Hôte** (grand écran) : choisit un quiz, ouvre une salle (**code + QR code**),
   lance chaque manche à son rythme, l'extrait est joué via le lecteur YouTube
   embarqué sur son écran, puis la réponse est révélée avec le classement.
+- **Écran public à projeter / partager** : un second écran (bouton **🖥️ Écran
+  public**) affiche le code, le QR, le minuteur, la question, les propositions et
+  le classement — **mais jamais la vidéo YouTube**. L'hôte garde sa fenêtre de
+  contrôle (avec la vidéo) sur son écran privé et projette / partage l'écran
+  public, pour ne **pas dévoiler le morceau** avant la réponse. Les deux fenêtres
+  se synchronisent en direct (même navigateur, via `BroadcastChannel`).
 - **Joueurs** (mobile) : rejoignent avec un code + un pseudo, répondent au QCM (le
   premier tap verrouille la réponse), voient s'ils ont eu bon/faux, les points
   gagnés et leur place au classement.
@@ -189,9 +195,10 @@ src/
     youtube.ts          # extraction de l'ID vidéo depuis une URL/ID
   *.test.ts             # tests unitaires + intégration (vitest)
 public/
-  index.html            # écran hôte      join.html  # écran joueur (mobile)
+  index.html            # écran hôte (contrôle + vidéo)   join.html  # écran joueur (mobile)
+  present.html          # écran public à projeter/partager (sans vidéo)
   css/styles.css        # thème + composants
-  js/host.js  js/player.js  js/common.js
+  js/host.js  js/player.js  js/present.js  js/common.js
 Dockerfile  render.yaml  # déploiement
 ```
 
@@ -200,6 +207,9 @@ Dockerfile  render.yaml  # déploiement
 ## 🎮 Déroulé d'une partie
 
 1. L'hôte ouvre <http://localhost:3000>, choisit un quiz, clique **Ouvrir une salle**.
+   Pour projeter sans dévoiler la vidéo : bouton **🖥️ Écran public** (nouvelle
+   fenêtre `/present`) → mets **celle-ci** sur le vidéoprojecteur / en partage
+   d'écran, et garde la fenêtre de contrôle (avec la vidéo) sur ton écran privé.
 2. Les joueurs scannent le QR (ou vont sur `/join` et tapent le code) + un pseudo.
 3. L'hôte clique **Démarrer la partie** ; à chaque manche l'extrait joue sur son
    écran, les joueurs voient le QCM et répondent (1er tap = verrouillé).

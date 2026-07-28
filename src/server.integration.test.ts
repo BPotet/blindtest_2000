@@ -92,6 +92,19 @@ describe('Authentification hôte', () => {
   });
 });
 
+describe('Pages statiques', () => {
+  it('sert l\'écran public sur /present (sans exiger de session)', async () => {
+    const res = await fetch(`http://localhost:${port}/present`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('id="present-round"');
+    expect(html).toContain('/js/present.js');
+    // L'écran public ne doit jamais embarquer le lecteur vidéo.
+    expect(html).not.toContain('id="yt-player"');
+    expect(html).not.toContain('youtube.com/iframe_api');
+  });
+});
+
 describe('CRUD playlists (HTTP)', () => {
   const body = {
     title: 'Ma playlist',

@@ -220,6 +220,8 @@ export function buildServer(
   // Fichiers statiques du front (host + player), et fallback SPA-léger.
   app.use(express.static(PUBLIC_DIR));
   app.get('/join', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'join.html')));
+  // Écran public (projeté / partagé) : tout sauf la vidéo YouTube.
+  app.get('/present', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'present.html')));
 
   const httpServer = createServer(app);
   const io = new IOServer(httpServer);

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blindtest 2000 — Écran public</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%96%A5%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body class="present">
+  <div class="app app--wide">
+    <header class="brand">
+      <span class="brand__logo">Blindtest 2000</span>
+      <span class="brand__tag">écran public</span>
+    </header>
+
+    <!-- En attente de l'hôte -->
+    <section id="present-idle" class="screen screen--active">
+      <div class="card center">
+        <h1>🖥️ Écran public</h1>
+        <p class="muted">Cet écran est fait pour être <strong>projeté ou partagé</strong> :
+          il n'affiche jamais la vidéo, pour ne pas dévoiler le morceau.</p>
+        <p class="muted">En attente de l'hôte…</p>
+        <p class="hint">Garde ta fenêtre de contrôle (avec la vidéo) sur ton écran privé,
+          et affiche <strong>celle-ci</strong> sur le vidéoprojecteur ou en partage d'écran.</p>
+      </div>
+    </section>
+
+    <!-- Lobby : code + QR + joueurs -->
+    <section id="present-lobby" class="screen">
+      <div class="card">
+        <p class="muted center" id="p-lobby-title"></p>
+        <div class="lobby-code" id="p-lobby-code">-----</div>
+        <div class="lobby-grid">
+          <div class="qr"><img id="p-lobby-qr" alt="QR code pour rejoindre" /></div>
+          <div>
+            <p>Pour rejoindre, scanne le QR code ou va sur :</p>
+            <p class="join-url"><strong id="p-lobby-url"></strong></p>
+            <p class="muted">…puis saisis le code <strong id="p-lobby-code-inline"></strong>.</p>
+            <p style="margin-top:16px;">Joueurs connectés : <span class="count-pill" id="p-player-count">0</span></p>
+            <div class="players" id="p-lobby-players"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Manche en cours : PAS de vidéo, un visualiseur audio à la place -->
+    <section id="present-round" class="screen">
+      <div class="card">
+        <div class="round-head">
+          <h2 id="p-round-progress">Manche</h2>
+          <div class="timer" id="p-round-timer">--</div>
+        </div>
+        <div class="audio-stage" id="p-audio-stage">
+          <div class="eq" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <p class="audio-stage__label" id="p-audio-label">🎵 À l'écoute…</p>
+        </div>
+        <div class="progress"><div class="progress__bar" id="p-round-bar"></div></div>
+        <h2 id="p-round-question" class="center"></h2>
+        <div class="options" id="p-round-options"></div>
+        <p class="center" style="margin-top:16px;">
+          Réponses reçues : <span class="count-pill" id="p-answer-count">0 / 0</span>
+        </p>
+      </div>
+    </section>
+
+    <!-- Résultat de manche -->
+    <section id="present-result" class="screen">
+      <div class="card center">
+        <p class="muted">La réponse était</p>
+        <h1 id="p-result-answer"></h1>
+      </div>
+      <div class="card" id="p-result-dist-card">
+        <div class="round-head">
+          <h2>Réponses des joueurs</h2>
+          <span class="count-pill" id="p-result-correct-count">0 / 0</span>
+        </div>
+        <div class="dist" id="p-result-distribution"></div>
+      </div>
+      <div class="card">
+        <h2>Classement</h2>
+        <div class="leaderboard" id="p-result-leaderboard"></div>
+      </div>
+    </section>
+
+    <!-- Fin de partie -->
+    <section id="present-ended" class="screen">
+      <div class="card center">
+        <h1>🏆 Partie terminée !</h1>
+        <div id="p-final-podium"></div>
+        <div class="leaderboard" id="p-final-leaderboard" style="margin-top:16px;"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/present.js"></script>
+</body>
+</html>

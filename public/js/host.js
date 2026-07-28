@@ -25,6 +25,54 @@
     combo: true, // bonus de série activé pour la prochaine salle
   };
 
+  // --- Écran public (fenêtre projetée/partagée) ---------------------------
+  // Piloté par BroadcastChannel (même origine, même navigateur) : la vidéo
+  // reste sur CETTE fenêtre de contrôle, l'écran public ne montre jamais la
+  // vidéo (pour ne pas dévoiler le morceau quand l'hôte partage son écran).
+  const present = ('BroadcastChannel' in window) ? new BroadcastChannel('bt-present') : null;
+  const pres = { scene: 'idle', data: {}, timer: null, answers: null, paused: false };
+
+  function sendPresent(msg) { if (present) present.postMessage(msg); }
+
+  function presentScene(scene, data) {
+    pres.scene = scene;
+    pres.data = data || {};
+    if (scene !== 'round') { pres.timer = null; pres.answers = null; pres.paused = false; }
+    sendPresent(Object.assign({ type: scene }, pres.data));
+  }
+
+  function presentTimer(remaining, total) {
+    pres.timer = { remaining, total };
+    sendPresent({ type: 'timer', remaining, total });
+  }
+
+  function presentAnswers(answered, playerCount) {
+    pres.answers = { answered, playerCount };
+    sendPresent({ type: 'answers', answered, playerCount });
+  }
+
+  function presentPaused(paused) {
+    pres.paused = paused;
+    sendPresent({ type: 'paused', paused });
+  }
+
+  // À l'ouverture d'un écran public, il réclame l'état courant : on le repousse.
+  if (present) {
+    present.onmessage = (ev) => {
+      if (!ev.data || ev.data.type !== 'ready') return;
+      sendPresent(Object.assign({ type: pres.scene }, pres.data));
+      if (pres.scene === 'round') {
+        if (pres.timer) sendPresent(Object.assign({ type: 'timer' }, pres.timer));
+        if (pres.answers) sendPresent(Object.assign({ type: 'answers' }, pres.answers));
+        if (pres.paused) sendPresent({ type: 'paused', paused: true });
+      }
+    };
+  }
+
+  function openPresent() {
+    window.open('/present', 'bt-present-win', 'width=1280,height=800');
+  }
+
   // --- API YouTube IFrame -------------------------------------------------
   window.onYouTubeIframeAPIReady = function () {
     state.ytReady = true;
@@ -105,12 +153,14 @@
       runCountdown();
       socket.emit('host:resumeRound', { remainingSeconds: state.remaining });
       $('#pause-round').textContent = '⏸️ Pause';
+      presentPaused(false);
     } else {
       state.paused = true;
       clearInterval(state.timer);
       try { if (state.yt) state.yt.pauseVideo(); } catch (_) {}
       socket.emit('host:pauseRound');
       $('#pause-round').textContent = '▶️ Reprendre';
+      presentPaused(true);
     }
   }
 
@@ -124,6 +174,7 @@
   function updateTimer(remaining, total) {
     $('#round-timer').textContent = Math.max(0, remaining);
     $('#round-bar').style.width = `${Math.max(0, (remaining / total) * 100)}%`;
+    presentTimer(remaining, total);
   }
 
   // --- Liste des quiz -----------------------------------------------------
@@ -185,7 +236,9 @@
   function onAuthed() {
     state.authed = true;
     $('#logout-btn').style.display = '';
+    $('#open-present').style.display = '';
     show('screen-home');
+    presentScene('idle');
     loadQuizzes();
     socket.connect(); // le handshake porte désormais le cookie de session
   }
@@ -420,6 +473,7 @@
       const rest = p.leaderboard.slice(3);
       if (rest.length) renderLeaderboard($('#final-leaderboard'), rest, null);
       else $('#final-leaderboard').innerHTML = '';
+      presentScene('ended', { leaderboard: p.leaderboard });
     } else {
       // En pleine partie : on montre le classement, l'hôte relance la manche suivante.
       show('screen-result');
@@ -427,6 +481,9 @@
       renderLeaderboard($('#result-leaderboard'), p.leaderboard, null);
       $('#next-round').style.display = '';
       $('#end-game').style.display = '';
+      presentScene('result', {
+        skipped: true, title: 'Reprise de la partie…', leaderboard: p.leaderboard, mode: state.roomMode,
+      });
     }
   });
 
@@ -443,6 +500,14 @@
     $('#answer-count').textContent = `0 / ${p.playerCount}`;
     $('#reveal-answer').disabled = false;
     renderHostOptions(p.hostRound.options);
+    presentScene('round', {
+      roundIndex: p.hostRound.roundIndex,
+      totalRounds: p.hostRound.totalRounds,
+      question: p.hostRound.question,
+      options: p.hostRound.options,
+      playerCount: p.playerCount,
+      mode: state.roomMode,
+    });
     if (p.hostRound.roundIndex === 0) {
       // 1re manche : décompte « 3·2·1 » PUIS lecture.
       socket.emit('host:beginCountdown');
@@ -455,6 +520,7 @@
 
   socket.on('host:answerUpdate', (p) => {
     $('#answer-count').textContent = `${p.answered} / ${p.playerCount}`;
+    presentAnswers(p.answered, p.playerCount);
   });
 
   socket.on('round:result', (p) => {
@@ -478,6 +544,17 @@
       $('#result-correct-count').textContent = `${p.correctCount} / ${p.totalPlayers} ${unit}`;
       renderLeaderboard($('#result-leaderboard'), p.leaderboard, null);
       $('#next-round').style.display = p.isLastRound ? 'none' : '';
+      presentScene('result', {
+        skipped: false,
+        answerLabel: p.answerLabel,
+        options: p.options,
+        distribution: p.distribution,
+        correctIndex: p.correctIndex,
+        correctCount: p.correctCount,
+        totalPlayers: p.totalPlayers,
+        leaderboard: p.leaderboard,
+        mode: state.roomMode,
+      });
     }, 1200);
   });
 
@@ -489,6 +566,7 @@
     $('#result-correct-count').textContent = '';
     renderLeaderboard($('#result-leaderboard'), p.leaderboard, null);
     $('#next-round').style.display = p.isLastRound ? 'none' : '';
+    presentScene('result', { skipped: true, leaderboard: p.leaderboard, mode: state.roomMode });
   });
 
   socket.on('game:ended', (p) => {
@@ -499,6 +577,7 @@
     else $('#final-leaderboard').innerHTML = '';
     window.App.confetti();
     window.App.Sound.fanfare();
+    presentScene('ended', { leaderboard: p.leaderboard });
     localStorage.removeItem('bt_host');
   });
 
@@ -517,6 +596,14 @@
     $('#lobby-qr').src = `/api/room/${state.code}/qr`;
     const joinUrl = `${location.origin}/join?code=${state.code}`;
     $('#lobby-url').textContent = joinUrl;
+    presentScene('lobby', {
+      code: state.code,
+      joinUrl,
+      quizTitle: quizTitle || '',
+      mode: state.roomMode,
+      players: players || [],
+      teams: teams || [],
+    });
     updatePlayers(players || [], teams || []);
   }
 
@@ -568,6 +655,13 @@
     const can = players.length > 0;
     $('#start-game').disabled = !can;
     $('#start-hint').textContent = can ? 'Prêt à démarrer quand tu veux.' : "En attente d'au moins un joueur…";
+
+    // Reflète les arrivées/départs sur l'écran public tant qu'on est au lobby.
+    if (pres.scene === 'lobby') {
+      pres.data.players = players;
+      pres.data.teams = teams || [];
+      sendPresent(Object.assign({ type: 'lobby' }, pres.data));
+    }
   }
 
   function setMode(m) {
@@ -609,6 +703,7 @@
   $('#login-btn').onclick = doLogin;
   $('#login-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
   $('#logout-btn').onclick = doLogout;
+  $('#open-present').onclick = openPresent;
 
   // --- Reprise après rechargement ----------------------------------------
   function tryReconnect() {
