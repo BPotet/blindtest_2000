@@ -531,19 +531,39 @@
     if (!title) { toast('Donne un titre au quiz.'); return; }
     const rounds = [];
     for (const block of $$('.builder-round')) {
-      const opts = $$('.r-opt', block).map((el) => el.value.trim()).filter(Boolean);
-      const correctEl = $(`input[name="correct-${block.dataset.round}"]:checked`, block);
+      // On parcourt les propositions dans l'ordre en ne gardant que les non vides,
+      // et on recale l'index de la bonne réponse sur cette liste filtrée
+      // (sinon un slot vide décale tout et rend le quiz invalide).
+      const options = [];
+      let correctIndex = 0;
+      $$('.option-input-row', block).forEach((row) => {
+        const val = $('.r-opt', row).value.trim();
+        if (!val) return;
+        const radio = $('input[type="radio"]', row);
+        if (radio && radio.checked) correctIndex = options.length;
+        options.push(val);
+      });
       rounds.push({
         youtube: $('.r-yt', block).value.trim(),
         startSeconds: Number($('.r-start', block).value) || 0,
         durationSeconds: Number($('.r-dur', block).value) || 20,
         question: $('.r-q', block).value.trim(),
-        options: opts,
-        correctIndex: correctEl ? Number(correctEl.value) : 0,
+        options,
+        correctIndex,
         answerLabel: $('.r-answer', block).value.trim(),
       });
     }
     if (rounds.length === 0) { toast('Ajoute au moins une manche.'); return; }
+
+    // Validation claire, manche par manche (message précis plutôt que « quiz invalide »).
+    for (let i = 0; i < rounds.length; i += 1) {
+      const r = rounds[i];
+      const num = i + 1;
+      if (!r.youtube) { toast(`Manche ${num} : colle un lien YouTube (ou un ID).`); return; }
+      if (!parseYtId(r.youtube)) { toast(`Manche ${num} : lien YouTube invalide.`); return; }
+      if (r.options.length < 2) { toast(`Manche ${num} : ajoute au moins 2 propositions.`); return; }
+      if (!r.question) { toast(`Manche ${num} : écris la question posée.`); return; }
+    }
     const editingId = state.editingQuizId;
     const btn = $('#save-quiz');
     btn.disabled = true;
