@@ -27,7 +27,14 @@ inclus et ce qui viendra ensuite.
   navigateur, via `BroadcastChannel`).
 - **Configuration à l'ouverture de la salle** : cliquer *Ouvrir une salle* ouvre
   une **modale** récapitulant et laissant régler le mode (Individuel/Équipes), le
-  combo, la partie automatique et son délai — pour lancer en connaissance de cause.
+  combo, la partie automatique et son délai, et le **son sur les téléphones** —
+  pour lancer en connaissance de cause.
+- **Son sur le téléphone des joueurs** (option) : si l'hôte l'active, chaque
+  joueur peut **écouter l'extrait sur son propre téléphone** (bouton *Écouter* —
+  l'autoplay mobile exige un tap). Idéal pour jouer **à distance** ; en présentiel,
+  l'hôte coupe le son de son écran pour éviter l'écho. La vidéo reste **masquée**
+  (audio seul). Désactivé par défaut : sans cette option, aucun identifiant vidéo
+  n'est envoyé aux joueurs (pas de spoiler possible).
 - **Aperçu des extraits dans le constructeur** : un bouton **▶️ Aperçu** par
   manche joue l'extrait au bon timestamp, pour se rappeler quel est le morceau.
 - **Joueurs** (mobile) : rejoignent avec un code + un pseudo, répondent au QCM (le

@@ -225,6 +225,14 @@
           <input id="auto-delay" type="number" min="2" max="30" value="6" style="width:64px;" />
           <span class="muted">secondes</span>
         </div>
+        <div class="mode-select">
+          <span class="muted">🔊 Son sur les téléphones des joueurs :</span>
+          <button id="audio-on" type="button" class="chip-btn">Oui</button>
+          <button id="audio-off" type="button" class="chip-btn active">Non</button>
+        </div>
+        <p class="hint" id="audio-hint" style="display:none;">Chaque joueur entendra l'extrait sur son
+          téléphone (il devra appuyer sur « Écouter »). Idéal à distance ; en présentiel, coupe le son de
+          l'écran de l'hôte pour éviter l'écho.</p>
         <p class="room-summary" id="room-config-summary"></p>
         <div class="btn-row" style="margin-top:18px;">
           <button id="room-config-confirm" class="btn btn--success">▶️ Ouvrir la salle</button>

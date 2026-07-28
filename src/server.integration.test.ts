@@ -495,6 +495,41 @@ describe('Mode équipes (Socket.IO)', () => {
   });
 });
 
+describe('Son sur les téléphones (Socket.IO)', () => {
+  async function playOneRound(playerAudio?: boolean) {
+    const host = connectHost();
+    await once(host, 'connect');
+    host.emit('host:createRoom', { quizId: 'demo-tubes', ...(playerAudio ? { playerAudio: true } : {}) });
+    const created = await once<any>(host, 'host:roomCreated');
+    const alice = connect();
+    alice.emit('player:join', { code: created.code, pseudo: 'Alice' });
+    const joined = await once<any>(alice, 'player:joined');
+    host.emit('host:startRound');
+    await once<any>(host, 'host:roundStarted');
+    const started = once<any>(alice, 'player:roundStarted');
+    host.emit('host:clipStarted');
+    const round = await started;
+    return { created, joined, publicRound: round.publicRound };
+  }
+
+  it('transmet l\'ID + le départ de l\'extrait aux joueurs quand activé', async () => {
+    const { created, joined, publicRound } = await playOneRound(true);
+    expect(created.playerAudio).toBe(true);
+    expect(joined.playerAudio).toBe(true);
+    expect(typeof publicRound.audioYoutubeId).toBe('string');
+    expect(publicRound.audioYoutubeId.length).toBeGreaterThan(0);
+    expect(typeof publicRound.audioStartSeconds).toBe('number');
+  });
+
+  it('ne transmet AUCUN audio par défaut (pas de fuite de la réponse)', async () => {
+    const { created, joined, publicRound } = await playOneRound(false);
+    expect(created.playerAudio).toBe(false);
+    expect(joined.playerAudio).toBe(false);
+    expect(publicRound.audioYoutubeId).toBeUndefined();
+    expect(publicRound.audioStartSeconds).toBeUndefined();
+  });
+});
+
 describe('Import YouTube — désactivé (pas de clé)', () => {
   it('/api/me indique youtubeImport:false et l\'endpoint répond 503', async () => {
     const me = await fetch(`http://localhost:${port}/api/me`, { headers: { Cookie: cookie } });

@@ -378,13 +378,19 @@ function toPublicRound(room: Room): PublicRound | null {
   const index = room.getCurrentRoundIndex();
   const round = room.quiz.rounds[index];
   if (!round) return null;
-  return {
+  const pr: PublicRound = {
     roundIndex: index,
     totalRounds: room.totalRounds,
     question: round.question,
     options: [...round.options],
     durationSeconds: round.durationSeconds,
   };
+  // Son sur les téléphones (opt-in) : on transmet de quoi jouer l'audio.
+  if (room.playerAudio) {
+    pr.audioYoutubeId = round.youtubeId;
+    pr.audioStartSeconds = round.startSeconds;
+  }
+  return pr;
 }
 
 function wireSockets(
@@ -419,7 +425,12 @@ function wireSockets(
         return;
       }
       data.userId = uid;
-      const room = roomManager.create(quiz, parsed.data.mode ?? 'solo', parsed.data.combo ?? true);
+      const room = roomManager.create(
+        quiz,
+        parsed.data.mode ?? 'solo',
+        parsed.data.combo ?? true,
+        parsed.data.playerAudio ?? false,
+      );
       room.hostSocketId = socket.id;
       data.role = 'host';
       data.code = room.code;
@@ -431,6 +442,7 @@ function wireSockets(
         totalRounds: room.totalRounds,
         mode: room.mode,
         combo: room.comboEnabled,
+        playerAudio: room.playerAudio,
         players: room.listPlayers(),
         teams: room.listTeams(),
       });
@@ -456,6 +468,7 @@ function wireSockets(
         quizTitle: room.quiz.title,
         totalRounds: room.totalRounds,
         mode: room.mode,
+        playerAudio: room.playerAudio,
         state: room.getState(),
         currentRoundIndex: room.getCurrentRoundIndex(),
         players: room.listPlayers(),
@@ -658,6 +671,7 @@ function wireSockets(
         totalRounds: room.totalRounds,
         state: room.getState(),
         mode: room.mode,
+        playerAudio: room.playerAudio,
         teamId: outcome.player.teamId ?? null,
         teamName: outcome.player.teamName ?? null,
       });
@@ -691,6 +705,7 @@ function wireSockets(
         totalRounds: room.totalRounds,
         state: room.getState(),
         mode: room.mode,
+        playerAudio: room.playerAudio,
         teamId: view.teamId ?? null,
         teamName: view.teamName ?? null,
         score: view.score,

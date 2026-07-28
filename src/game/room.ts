@@ -93,6 +93,8 @@ export class Room {
   private teamLock = new Map<string, { optionIndex: number; elapsedMs: number }>();
   readonly mode: RoomMode;
   readonly comboEnabled: boolean;
+  /** Son joué sur le téléphone des joueurs (opt-in de l'hôte). */
+  readonly playerAudio: boolean;
   createdAt = Date.now();
   lastActivityAt = Date.now();
 
@@ -101,11 +103,13 @@ export class Room {
     code = generateRoomCode(),
     mode: RoomMode = 'solo',
     comboEnabled = true,
+    playerAudio = false,
   ) {
     this.quiz = quiz;
     this.code = code;
     this.mode = mode;
     this.comboEnabled = comboEnabled;
+    this.playerAudio = playerAudio;
     this.hostToken = generateId('host');
   }
 
@@ -656,12 +660,12 @@ export class Room {
 export class RoomManager {
   private readonly rooms = new Map<string, Room>();
 
-  create(quiz: Quiz, mode: RoomMode = 'solo', comboEnabled = true): Room {
+  create(quiz: Quiz, mode: RoomMode = 'solo', comboEnabled = true, playerAudio = false): Room {
     let code = generateRoomCode();
     while (this.rooms.has(code)) {
       code = generateRoomCode();
     }
-    const room = new Room(quiz, code, mode, comboEnabled);
+    const room = new Room(quiz, code, mode, comboEnabled, playerAudio);
     this.rooms.set(code, room);
     return room;
   }

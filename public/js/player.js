@@ -1,4 +1,4 @@
-/* global io */
+/* global io, YT */
 (function () {
   const { $, $$, show, escapeHtml, OPTION_SHAPES, toast, renderLeaderboard } = window.App;
   const socket = io();
@@ -8,7 +8,56 @@
     awaiting: false, mode: 'solo', teamId: null, teamName: null,
     options: [], myVote: null, teamLocked: false, teamAnswerIndex: null, streak: 0, paused: false,
     autoNextTimer: null,
+    // Son sur le téléphone (si l'hôte l'a activé).
+    playerAudio: false, ytReady: false, yt: null, audioUnlocked: false, audioVideoId: null, audioStart: 0,
   };
+
+  // --- Son sur le téléphone du joueur (lecteur YouTube caché, audio seul) ----
+  // L'autoplay mobile exige un geste : un bouton « Écouter » lance/relance le son.
+  window.onYouTubeIframeAPIReady = function () { state.ytReady = true; };
+
+  function setAudioLabel(playing) {
+    const btn = $('#player-audio-btn');
+    const label = $('#player-audio-label');
+    if (label) label.textContent = playing ? '🎧 Son en cours…' : '🎧 Son du blindtest';
+    if (btn) btn.textContent = playing ? '🔊 Son activé' : '🔊 Écouter le son';
+  }
+
+  function playAudio(videoId, start) {
+    if (!videoId) return;
+    state.audioUnlocked = true;
+    try {
+      if (!state.yt) {
+        if (!state.ytReady || !window.YT || !window.YT.Player) return;
+        state.yt = new YT.Player('player-audio', {
+          videoId,
+          playerVars: { start, autoplay: 1, controls: 0, playsinline: 1, rel: 0, modestbranding: 1 },
+          events: { onReady: (e) => { try { e.target.seekTo(start, true); e.target.playVideo(); } catch (_) {} } },
+        });
+      } else {
+        state.yt.loadVideoById({ videoId, startSeconds: start });
+        state.yt.playVideo();
+      }
+      setAudioLabel(true);
+    } catch (_) { /* lecteur indisponible : le joueur répond sans le son */ }
+  }
+
+  function stopAudio() {
+    try { if (state.yt) state.yt.pauseVideo(); } catch (_) {}
+    setAudioLabel(false);
+  }
+
+  // Prépare le son de la manche : affiche le bloc, mémorise l'extrait, et tente
+  // une lecture auto si le joueur a déjà autorisé le son (sinon il tape le bouton).
+  function setupRoundAudio(pr) {
+    const section = $('#player-audio-section');
+    if (!pr || !pr.audioYoutubeId) { if (section) section.style.display = 'none'; return; }
+    state.audioVideoId = pr.audioYoutubeId;
+    state.audioStart = pr.audioStartSeconds || 0;
+    if (section) section.style.display = '';
+    setAudioLabel(false);
+    if (state.audioUnlocked) playAudio(state.audioVideoId, state.audioStart);
+  }
 
   // Mode auto : décompte visible côté joueur avant la manche suivante.
   function clearAutoNext() {
@@ -168,6 +217,7 @@
       lockBtn.style.display = 'none';
     }
     renderOptions(pr.options);
+    setupRoundAudio(pr); // son sur le téléphone si l'hôte l'a activé
     startTimer(pr.durationSeconds);
   }
 
@@ -179,11 +229,13 @@
     state.teamId = p.teamId || null;
     state.teamName = p.teamName || null;
     state.pseudo = $('#join-pseudo').value.trim();
+    state.playerAudio = !!p.playerAudio;
     localStorage.setItem('bt_player', JSON.stringify({ code: p.code, playerId: p.playerId }));
     show('screen-wait');
     $('#wait-pseudo').textContent = state.pseudo;
     $('#wait-quiz').textContent =
-      (p.quizTitle ? `Quiz : ${p.quizTitle}` : '') + (state.teamName ? ` · 👥 ${state.teamName}` : '');
+      (p.quizTitle ? `Quiz : ${p.quizTitle}` : '') + (state.teamName ? ` · 👥 ${state.teamName}` : '')
+      + (state.playerAudio ? ' · 🎧 son sur ton tél' : '');
   });
 
   socket.on('player:snapshot', (p) => {
@@ -192,6 +244,7 @@
     state.mode = p.mode || 'solo';
     state.teamId = p.teamId || null;
     state.teamName = p.teamName || null;
+    state.playerAudio = !!p.playerAudio;
     if (p.state === 'playing' && p.publicRound) {
       enterQuestion(p.publicRound);
       if (p.alreadyAnswered) lockOptions('Réponse déjà envoyée ✓ En attente des autres…');
@@ -222,6 +275,7 @@
 
   socket.on('player:roundLoading', (p) => {
     clearAutoNext();
+    stopAudio();
     stopTimer();
     state.answered = false;
     state.lastChoice = null;
@@ -273,6 +327,7 @@
 
   socket.on('round:skipped', (p) => {
     stopTimer();
+    stopAudio();
     state.paused = false;
     show('screen-feedback');
     $('#feedback-banner').className = 'result-banner';
@@ -287,6 +342,7 @@
   // Partie annulée par l'hôte : on revient à l'écran d'attente.
   socket.on('game:cancelled', () => {
     clearAutoNext();
+    stopAudio();
     stopTimer();
     state.answered = false;
     state.paused = false;
@@ -299,6 +355,7 @@
   socket.on('player:kicked', () => {
     localStorage.removeItem('bt_player');
     stopTimer();
+    stopAudio();
     show('screen-join');
     $('#code-error').textContent = "Tu as été exclu de la partie par l'hôte.";
   });
@@ -336,6 +393,7 @@
 
   socket.on('round:result', (p) => {
     stopTimer();
+    stopAudio();
     const mine = state.playerId ? p.results[state.playerId] : null;
     window.App.Sound[mine && mine.correct ? 'correct' : 'wrong']();
     show('screen-feedback');
@@ -394,6 +452,7 @@
 
   function showFinal(leaderboard) {
     clearAutoNext();
+    stopAudio();
     show('screen-final');
     const me = leaderboard.find((e) => e.playerId === lbId());
     $('#final-rank').textContent = me ? `#${me.rank}` : '—';
@@ -477,6 +536,8 @@
     if (state.teamLocked) return;
     socket.emit('player:teamLock');
   };
+  // Le tap sur ce bouton fournit le « geste » requis pour l'autoplay mobile.
+  $('#player-audio-btn').onclick = () => playAudio(state.audioVideoId, state.audioStart);
   $('#join-btn').onclick = doJoin;
   $('#new-team').addEventListener('input', () => {
     $$('#team-chips .team-chip').forEach((c) => c.classList.remove('selected'));

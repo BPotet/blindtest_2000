@@ -38,6 +38,10 @@ export interface PublicRound {
   question: string;
   options: string[];
   durationSeconds: number;
+  /** Si l'hôte a activé le son sur les téléphones : ID + départ de l'extrait
+   *  (audio uniquement, vidéo masquée). Absent sinon (aucune fuite). */
+  audioYoutubeId?: string;
+  audioStartSeconds?: number;
 }
 
 /** La vue d'une manche envoyée à l'HÔTE — contient de quoi jouer et révéler. */

@@ -27,6 +27,7 @@
     autoDelay: 6, // secondes d'attente entre les manches en mode auto (réglable)
     autoTimer: null, // timer d'enchaînement automatique des manches
     autoSkipTimer: null, // timer de révélation anticipée quand tout le monde a répondu
+    playerAudio: false, // son joué sur le téléphone des joueurs
     youtubeImport: false, // import de playlist YouTube disponible (clé API côté serveur)
   };
 
@@ -895,6 +896,14 @@
     updateRoomSummary();
   }
 
+  function setPlayerAudio(on) {
+    state.playerAudio = on;
+    $('#audio-on').classList.toggle('active', on);
+    $('#audio-off').classList.toggle('active', !on);
+    $('#audio-hint').style.display = on ? '' : 'none';
+    updateRoomSummary();
+  }
+
   // --- Modale de configuration de la salle -------------------------------
   function updateRoomSummary() {
     const el = $('#room-config-summary');
@@ -904,6 +913,7 @@
       state.combo ? '🔥 Combo' : 'Sans combo',
       state.autoplay ? `🎮 Auto (${clampAutoDelay($('#auto-delay').value)}s d'attente)` : '🎬 Partie manuelle',
     ];
+    if (state.playerAudio) parts.push('🔊 Son sur les tél.');
     el.textContent = parts.join('  ·  ');
   }
 
@@ -922,7 +932,9 @@
   function confirmRoomConfig() {
     if (!state.pendingQuizId) return;
     state.autoDelay = clampAutoDelay($('#auto-delay').value);
-    socket.emit('host:createRoom', { quizId: state.pendingQuizId, mode: state.mode, combo: state.combo });
+    socket.emit('host:createRoom', {
+      quizId: state.pendingQuizId, mode: state.mode, combo: state.combo, playerAudio: state.playerAudio,
+    });
     closeRoomConfig();
   }
 
@@ -1009,6 +1021,8 @@
   $('#combo-off').onclick = () => setCombo(false);
   $('#auto-on').onclick = () => setAuto(true);
   $('#auto-off').onclick = () => setAuto(false);
+  $('#audio-on').onclick = () => setPlayerAudio(true);
+  $('#audio-off').onclick = () => setPlayerAudio(false);
   $('#tab-login').onclick = () => setAuthMode('login');
   $('#tab-register').onclick = () => setAuthMode('register');
   $('#login-btn').onclick = doAuth;
