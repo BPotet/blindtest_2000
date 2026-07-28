@@ -82,6 +82,9 @@ export class Room {
   private roundStartedAt = 0;
   /** Vrai une fois que l'extrait a réellement commencé à jouer chez l'hôte. */
   private clipStarted = false;
+  /** Manche en pause (l'hôte a mis en pause). */
+  private paused = false;
+  private pausedAt = 0;
   private readonly players = new Map<string, Player>();
   private readonly teams = new Map<string, Team>();
   private answers = new Map<string, RecordedAnswer>();
@@ -314,6 +317,8 @@ export class Room {
 
     this.state = 'playing';
     this.clipStarted = false;
+    this.paused = false;
+    this.pausedAt = 0;
     this.roundStartedAt = 0;
     this.answers = new Map();
     this.teamVotes = new Map();
@@ -353,6 +358,49 @@ export class Room {
     return this.clipStarted;
   }
 
+  isPaused(): boolean {
+    return this.paused;
+  }
+
+  /** Met la manche en pause (gèle la fenêtre de réponse). */
+  pause(now = Date.now()): boolean {
+    if (this.state !== 'playing' || this.paused) return false;
+    this.paused = true;
+    this.pausedAt = now;
+    this.touch();
+    return true;
+  }
+
+  /** Reprend la manche : le temps de pause est exclu du chrono de scoring. */
+  resume(now = Date.now()): boolean {
+    if (!this.paused) return false;
+    this.roundStartedAt += now - this.pausedAt;
+    this.paused = false;
+    this.touch();
+    return true;
+  }
+
+  /** Passe la manche en cours sans la noter (aucun point, séries inchangées). */
+  skipRound(): boolean {
+    if (this.state !== 'playing') return false;
+    this.state = 'roundResult';
+    this.paused = false;
+    this.touch();
+    return true;
+  }
+
+  /** Exclut un joueur de la salle. Renvoie son socketId pour le prévenir. */
+  removePlayer(playerId: string): string | null {
+    const player = this.players.get(playerId);
+    if (!player) return null;
+    const socketId = player.socketId;
+    this.players.delete(playerId);
+    this.answers.delete(playerId);
+    for (const votes of this.teamVotes.values()) votes.delete(playerId);
+    this.touch();
+    return socketId;
+  }
+
   /**
    * Enregistre la réponse d'un joueur. Le temps de réponse est mesuré ici, côté
    * serveur (jamais fourni par le client). Le premier tap verrouille.
@@ -367,6 +415,9 @@ export class Room {
     }
     if (!this.clipStarted) {
       return { accepted: false, reason: "L'extrait n'a pas encore démarré." };
+    }
+    if (this.paused) {
+      return { accepted: false, reason: 'Manche en pause.' };
     }
     const player = this.players.get(playerId);
     if (!player) {

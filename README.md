@@ -35,6 +35,12 @@ inclus et ce qui viendra ensuite.
   score ni sa place.
 - **Quiz de démonstration** livrés d'origine + **création, édition et
   suppression** de ses propres playlists depuis l'interface.
+- **Bonus de série (combo)** : points bonus croissants pour les bonnes réponses
+  consécutives (+100 par palier, plafonné à +500), **activable/désactivable par
+  l'hôte** à l'ouverture de la salle.
+- **Contrôles hôte** pendant la partie : **rejouer** l'extrait, **pause/reprise**
+  (chrono gelé équitablement), **passer** une manche (sans la noter), et
+  **exclure** un joueur depuis le lobby.
 - **Récap de fin de manche** : répartition des votes par proposition (façon
   Kahoot) et nombre de joueurs ayant trouvé.
 - **Minuteur visible** côté hôte **et** côté joueur (compte à rebours + barre).

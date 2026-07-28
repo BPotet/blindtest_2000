@@ -31,6 +31,14 @@ export const answerSchema = z.object({
   optionIndex: z.number().int().min(0).max(5),
 });
 
+export const kickSchema = z.object({
+  playerId: z.string().min(1).max(100),
+});
+
+export const resumeSchema = z.object({
+  remainingSeconds: z.number().min(0).max(600),
+});
+
 const roundInputSchema = z.object({
   youtube: z
     .string()

@@ -340,6 +340,47 @@ describe('Room — combo (bonus de série)', () => {
   });
 });
 
+describe('Room — contrôles hôte', () => {
+  it('met en pause et exclut le temps de pause du chrono de réponse', () => {
+    const room = new Room(makeQuiz(), 'ABCDE', 'solo', false);
+    const p = room.addPlayer('Alice', 's1');
+    if (!('player' in p)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(0);
+    expect(room.pause(1000)).toBe(true);
+    expect(room.isPaused()).toBe(true);
+    // Réponse refusée pendant la pause.
+    expect(room.submitAnswer(p.player.id, 1, 1500).accepted).toBe(false);
+    expect(room.resume(4000)).toBe(true); // 3000 ms de pause
+    expect(room.isPaused()).toBe(false);
+    // Le chrono est décalé : la réponse est de nouveau acceptée.
+    expect(room.submitAnswer(p.player.id, 1, 5000).accepted).toBe(true);
+  });
+
+  it('passe une manche sans la noter', () => {
+    const room = new Room(makeQuiz(), 'ABCDE');
+    const p = room.addPlayer('Alice', 's1');
+    if (!('player' in p)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(p.player.id, 1, 0); // bonne réponse
+    expect(room.skipRound()).toBe(true);
+    expect(room.leaderboard()[0].score).toBe(0); // aucune note
+    expect(room.startNextRound()).not.toBeNull(); // on peut enchaîner
+  });
+
+  it('exclut un joueur de la salle', () => {
+    const room = new Room(makeQuiz(), 'ABCDE');
+    const a = room.addPlayer('Alice', 's1');
+    const b = room.addPlayer('Bob', 's2');
+    if (!('player' in a) || !('player' in b)) throw new Error();
+    expect(room.removePlayer(a.player.id)).toBe('s1');
+    expect(room.playerCount).toBe(1);
+    expect(room.listPlayers().map((pl) => pl.pseudo)).toEqual(['Bob']);
+    expect(room.removePlayer('inconnu')).toBeNull();
+  });
+});
+
 describe('RoomManager — isolation', () => {
   it('crée des salles avec des codes uniques', () => {
     const mgr = new RoomManager();

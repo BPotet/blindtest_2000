@@ -169,6 +169,8 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
   font-weight: 600; display: flex; align-items: center; gap: 8px;
 }
 .player-chip.offline { opacity: 0.45; }
+.chip-kick { appearance: none; border: none; background: transparent; color: var(--text-muted); cursor: pointer; font-weight: 800; font-size: 14px; padding: 0 0 0 4px; line-height: 1; }
+.chip-kick:hover { color: var(--danger); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
 .player-chip.offline .dot { background: var(--text-muted); }
 .count-pill {

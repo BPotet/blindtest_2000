@@ -17,6 +17,9 @@
     editingQuizId: null,
     clipStarted: false,
     clipFallback: null,
+    total: 0,
+    remaining: 0,
+    paused: false,
     mode: 'solo', // mode choisi pour la prochaine salle
     roomMode: 'solo', // mode de la salle en cours
     combo: true, // bonus de série activé pour la prochaine salle
@@ -72,18 +75,43 @@
   }
 
   function startCountdown(total) {
-    let remaining = total;
-    updateTimer(remaining, total);
+    state.total = total;
+    state.remaining = total;
+    updateTimer(state.remaining, state.total);
+    runCountdown();
+  }
+
+  function runCountdown() {
     clearInterval(state.timer);
     state.timer = setInterval(() => {
-      remaining -= 1;
-      updateTimer(remaining, total);
-      if (remaining <= 0) {
+      state.remaining -= 1;
+      updateTimer(state.remaining, state.total);
+      if (state.remaining <= 0) {
         clearInterval(state.timer);
         stopClip();
         socket.emit('host:endRound');
       }
     }, 1000);
+  }
+
+  function replayClip() {
+    try { if (state.yt) { state.yt.seekTo(state.round.startSeconds, true); state.yt.playVideo(); } } catch (_) {}
+  }
+
+  function togglePause() {
+    if (state.paused) {
+      state.paused = false;
+      try { if (state.yt) state.yt.playVideo(); } catch (_) {}
+      runCountdown();
+      socket.emit('host:resumeRound', { remainingSeconds: state.remaining });
+      $('#pause-round').textContent = '⏸️ Pause';
+    } else {
+      state.paused = true;
+      clearInterval(state.timer);
+      try { if (state.yt) state.yt.pauseVideo(); } catch (_) {}
+      socket.emit('host:pauseRound');
+      $('#pause-round').textContent = '▶️ Reprendre';
+    }
   }
 
   function stopClip() {
@@ -407,6 +435,8 @@
   socket.on('host:roundStarted', (p) => {
     state.round = p.hostRound;
     state.clipStarted = false;
+    state.paused = false;
+    $('#pause-round').textContent = '⏸️ Pause';
     show('screen-round');
     $('#round-progress').textContent = `Manche ${p.hostRound.roundIndex + 1} / ${p.hostRound.totalRounds}`;
     $('#round-question').textContent = p.hostRound.question;
@@ -451,6 +481,16 @@
     }, 1200);
   });
 
+  socket.on('round:skipped', (p) => {
+    stopClip();
+    show('screen-result');
+    $('#result-answer').textContent = '⏭️ Manche passée';
+    $('#result-distribution').innerHTML = '';
+    $('#result-correct-count').textContent = '';
+    renderLeaderboard($('#result-leaderboard'), p.leaderboard, null);
+    $('#next-round').style.display = p.isLastRound ? 'none' : '';
+  });
+
   socket.on('game:ended', (p) => {
     show('screen-ended');
     window.App.renderPodium($('#final-podium'), p.leaderboard, null);
@@ -484,6 +524,17 @@
     const chip = document.createElement('span');
     chip.className = 'player-chip' + (pl.connected ? '' : ' offline');
     chip.innerHTML = `<span class="dot"></span>${escapeHtml(pl.pseudo)}`;
+    const kick = document.createElement('button');
+    kick.className = 'chip-kick';
+    kick.textContent = '✕';
+    kick.setAttribute('aria-label', `Exclure ${pl.pseudo}`);
+    kick.onclick = (e) => {
+      e.stopPropagation();
+      if (window.confirm(`Exclure ${pl.pseudo} de la partie ?`)) {
+        socket.emit('host:kickPlayer', { playerId: pl.id });
+      }
+    };
+    chip.appendChild(kick);
     return chip;
   }
 
@@ -546,6 +597,9 @@
   $('#save-quiz').onclick = saveQuiz;
   $('#start-game').onclick = () => socket.emit('host:startRound');
   $('#reveal-answer').onclick = () => { $('#reveal-answer').disabled = true; stopClip(); socket.emit('host:endRound'); };
+  $('#replay-clip').onclick = replayClip;
+  $('#pause-round').onclick = togglePause;
+  $('#skip-round').onclick = () => { if (window.confirm('Passer cette manche (aucun point) ?')) socket.emit('host:skipRound'); };
   $('#next-round').onclick = () => socket.emit('host:startRound');
   $('#end-game').onclick = () => socket.emit('host:endGame');
   $('#mode-solo').onclick = () => setMode('solo');

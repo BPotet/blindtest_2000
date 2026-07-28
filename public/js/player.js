@@ -6,7 +6,7 @@
   const state = {
     code: null, playerId: null, pseudo: null, answered: false, lastChoice: null, timer: null,
     awaiting: false, mode: 'solo', teamId: null, teamName: null,
-    options: [], myVote: null, teamLocked: false, teamAnswerIndex: null, streak: 0,
+    options: [], myVote: null, teamLocked: false, teamAnswerIndex: null, streak: 0, paused: false,
   };
 
   // Identifiant utilisé pour surligner « moi » dans le classement : l'équipe en
@@ -73,7 +73,7 @@
   }
 
   function submitAnswer(i, btn) {
-    if (state.teamLocked) return;
+    if (state.paused || state.teamLocked) return;
 
     if (state.mode === 'teams') {
       // Vote d'équipe : modifiable tant que l'équipe n'est pas verrouillée.
@@ -214,6 +214,44 @@
   });
 
   socket.on('player:roundStarted', (p) => enterQuestion(p.publicRound));
+
+  // --- Contrôles hôte côté joueur -----------------------------------------
+  socket.on('round:paused', () => {
+    state.paused = true;
+    stopTimer();
+    $$('#q-options .option').forEach((b) => { b.disabled = true; });
+    $('#q-status').textContent = '⏸️ En pause…';
+  });
+
+  socket.on('round:resumed', (p) => {
+    state.paused = false;
+    startTimer(Math.max(1, p.remainingSeconds || 1));
+    const canAnswer = state.mode === 'teams' ? !state.teamLocked : !state.answered;
+    if (canAnswer) {
+      $$('#q-options .option').forEach((b) => { b.disabled = false; });
+      $('#q-status').textContent = state.mode === 'teams' ? '🗳️ Votez, puis verrouillez' : 'À toi de jouer !';
+    }
+  });
+
+  socket.on('round:skipped', (p) => {
+    stopTimer();
+    state.paused = false;
+    show('screen-feedback');
+    $('#feedback-banner').className = 'result-banner';
+    $('#feedback-title').textContent = '⏭️ Manche passée';
+    $('#feedback-points').textContent = '';
+    $('#feedback-streak').textContent = '';
+    $('#feedback-answer').textContent = '';
+    $('#feedback-distribution').innerHTML = '';
+    renderLeaderboard($('#feedback-leaderboard'), p.leaderboard, lbId());
+  });
+
+  socket.on('player:kicked', () => {
+    localStorage.removeItem('bt_player');
+    stopTimer();
+    show('screen-join');
+    $('#code-error').textContent = "Tu as été exclu de la partie par l'hôte.";
+  });
 
   socket.on('player:answerRejected', (p) => toast(p.reason || 'Réponse refusée.'));
 

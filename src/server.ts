@@ -14,6 +14,8 @@ import {
   reconnectSchema,
   hostReconnectSchema,
   answerSchema,
+  kickSchema,
+  resumeSchema,
   createQuizSchema,
   type CreateQuizInput,
 } from './validation';
@@ -431,6 +433,43 @@ function wireSockets(
       if (!room) return;
       room.endGame();
       io.to(room.code).emit('game:ended', { leaderboard: room.leaderboard() });
+    });
+
+    // ---- Contrôles hôte : pause, reprise, passer, exclure ---------------
+
+    socket.on('host:pauseRound', () => {
+      const room = getHostRoom(socket, roomManager);
+      if (!room) return;
+      if (room.pause()) socket.to(room.code).emit('round:paused');
+    });
+
+    socket.on('host:resumeRound', (payload: unknown) => {
+      const room = getHostRoom(socket, roomManager);
+      if (!room) return;
+      const parsed = resumeSchema.safeParse(payload);
+      const remainingSeconds = parsed.success ? Math.round(parsed.data.remainingSeconds) : 0;
+      if (room.resume()) socket.to(room.code).emit('round:resumed', { remainingSeconds });
+    });
+
+    socket.on('host:skipRound', () => {
+      const room = getHostRoom(socket, roomManager);
+      if (!room) return;
+      if (room.skipRound()) {
+        io.to(room.code).emit('round:skipped', {
+          leaderboard: room.leaderboard(),
+          isLastRound: room.isLastRound(),
+        });
+      }
+    });
+
+    socket.on('host:kickPlayer', (payload: unknown) => {
+      const room = getHostRoom(socket, roomManager);
+      if (!room) return;
+      const parsed = kickSchema.safeParse(payload);
+      if (!parsed.success) return;
+      const socketId = room.removePlayer(parsed.data.playerId);
+      if (socketId) io.to(socketId).emit('player:kicked');
+      broadcastPlayers(io, room);
     });
 
     // ---- Joueur --------------------------------------------------------
