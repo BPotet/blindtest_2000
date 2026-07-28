@@ -26,10 +26,12 @@
     autoplay: false, // partie automatique : l'hôte joue aussi, la partie s'enchaîne seule
     autoDelay: 6, // secondes d'attente entre les manches en mode auto (réglable)
     autoTimer: null, // timer d'enchaînement automatique des manches
+    autoSkipTimer: null, // timer de révélation anticipée quand tout le monde a répondu
     youtubeImport: false, // import de playlist YouTube disponible (clé API côté serveur)
   };
 
   const clampAutoDelay = (v) => Math.max(2, Math.min(30, Math.round(Number(v)) || 6));
+  const AUTO_SKIP_MS = 3000; // mode auto : délai avant révélation quand tous ont répondu
 
   // --- Écran public (fenêtre projetée/partagée) ---------------------------
   // Piloté par BroadcastChannel (même origine, même navigateur) : la vidéo
@@ -616,6 +618,7 @@
 
   socket.on('host:roundStarted', (p) => {
     cancelAutoNext();
+    cancelAutoSkip();
     state.round = p.hostRound;
     state.clipStarted = false;
     state.paused = false;
@@ -653,9 +656,28 @@
   socket.on('host:answerUpdate', (p) => {
     $('#answer-count').textContent = `${p.answered} / ${p.playerCount}`;
     presentAnswers(p.answered, p.playerCount);
+    maybeAutoSkip(p.answered, p.playerCount);
   });
 
+  // Mode auto : dès que tout le monde a répondu, on révèle après 3 s sans
+  // attendre la fin du minuteur.
+  function maybeAutoSkip(answered, playerCount) {
+    if (!state.autoplay || state.paused || state.autoSkipTimer) return;
+    if (playerCount <= 0 || answered < playerCount) return;
+    state.autoSkipTimer = setTimeout(() => {
+      state.autoSkipTimer = null;
+      clearInterval(state.timer); // stoppe le décompte de manche (on clôt en avance)
+      stopClip();
+      socket.emit('host:endRound');
+    }, AUTO_SKIP_MS);
+  }
+
+  function cancelAutoSkip() {
+    if (state.autoSkipTimer) { clearTimeout(state.autoSkipTimer); state.autoSkipTimer = null; }
+  }
+
   socket.on('round:result', (p) => {
+    cancelAutoSkip();
     stopClip();
     // Surligne la bonne réponse sur l'écran hôte.
     $$('#round-options .option').forEach((el) => {
@@ -692,6 +714,7 @@
   });
 
   socket.on('round:skipped', (p) => {
+    cancelAutoSkip();
     stopClip();
     show('screen-result');
     $('#result-answer').textContent = '⏭️ Manche passée';
@@ -750,6 +773,7 @@
   // Partie annulée : retour au lobby (tout le monde y revient, scores à zéro).
   socket.on('game:cancelled', (p) => {
     cancelAutoNext();
+    cancelAutoSkip();
     stopClip();
     state.paused = false;
     enterLobby(p.quizTitle, p.players, p.teams);
@@ -759,6 +783,7 @@
   function cancelGame() {
     if (!window.confirm('Annuler la partie et revenir au lobby ? Les scores seront remis à zéro.')) return;
     cancelAutoNext();
+    cancelAutoSkip();
     stopClip();
     socket.emit('host:cancelGame');
   }

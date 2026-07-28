@@ -66,7 +66,9 @@ inclus et ce qui viendra ensuite.
   **s'enchaîne toute seule** (révélation automatique, manche suivante automatique,
   podium final). Le **délai d'attente entre les manches est réglable** (2–30 s), et
   pendant l'attente **les joueurs voient le décompte** avant la chanson suivante
-  (« ⏭️ Prochaine chanson dans 5… »). Une partie peut être **annulée** à tout
+  (« ⏭️ Prochaine chanson dans 5… »). Dès que **tout le monde a répondu**, la
+  manche se **révèle après 3 s** sans attendre la fin du minuteur. Une partie peut
+  être **annulée** à tout
   moment (bouton *Annuler la partie*) pour revenir au lobby (scores remis à zéro).
   L'hôte **rejoint sur son téléphone** comme un joueur : il ne
   connaît pas les réponses et **joue à égalité** avec les autres. Un seul clic
