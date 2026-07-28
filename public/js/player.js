@@ -334,6 +334,14 @@
     }
   });
 
+  // Équipes créées en parallèle sur d'autres téléphones : MAJ du sélecteur tant
+  // qu'on est encore sur l'écran de choix d'équipe (avant d'avoir rejoint).
+  socket.on('room:teams', (p) => {
+    if (state.playerId) return;
+    const section = $('#team-section');
+    if (section && section.style.display === 'block') renderTeamPicker(p.teams || []);
+  });
+
   function showFinal(leaderboard) {
     show('screen-final');
     const me = leaderboard.find((e) => e.playerId === lbId());
@@ -355,11 +363,13 @@
 
   function renderTeamPicker(teams) {
     const box = $('#team-chips');
+    // Conserve la sélection courante lors d'une MAJ en direct (nouvelles équipes).
+    const prevSelected = selectedChipName();
     box.innerHTML = '';
     (teams || []).forEach((t) => {
       const chip = document.createElement('button');
       chip.type = 'button';
-      chip.className = 'team-chip';
+      chip.className = 'team-chip' + (t.name === prevSelected ? ' selected' : '');
       chip.dataset.name = t.name;
       chip.textContent = `${t.name} · ${t.memberCount}`;
       chip.onclick = () => {
@@ -396,6 +406,9 @@
       const section = $('#team-section');
       if (!section.style.display || section.style.display === 'none') {
         renderTeamPicker(joinInfo.teams);
+        // Observe la salle : les équipes créées sur d'autres téléphones
+        // apparaissent en direct sans avoir à recharger.
+        socket.emit('player:watchRoom', { code });
         section.style.display = 'block';
         $('#join-btn').textContent = "C'est parti !";
         $('#new-team').focus();

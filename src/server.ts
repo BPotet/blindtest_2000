@@ -16,6 +16,7 @@ import {
   answerSchema,
   kickSchema,
   resumeSchema,
+  watchRoomSchema,
   createQuizSchema,
   type CreateQuizInput,
 } from './validation';
@@ -476,6 +477,19 @@ function wireSockets(
 
     // ---- Joueur --------------------------------------------------------
 
+    // Un joueur encore sur l'écran de choix d'équipe observe la salle pour voir
+    // apparaître en direct les équipes créées sur d'autres téléphones. On le met
+    // dans une room « lobby » dédiée : il reçoit les MAJ d'équipes sans être
+    // exposé aux évènements de jeu (roundLoading, roundStarted…).
+    socket.on('player:watchRoom', (payload: unknown) => {
+      const parsed = watchRoomSchema.safeParse(payload);
+      if (!parsed.success) return;
+      const room = roomManager.get(parsed.data.code);
+      if (!room) return;
+      void socket.join(lobbyRoom(room.code));
+      socket.emit('room:teams', { teams: room.listTeams() });
+    });
+
     socket.on('player:join', (payload: unknown) => {
       const parsed = joinRoomSchema.safeParse(payload);
       if (!parsed.success) {
@@ -496,6 +510,7 @@ function wireSockets(
       data.code = room.code;
       data.playerId = outcome.player.id;
       void socket.join(room.code);
+      void socket.leave(lobbyRoom(room.code)); // il devient joueur : plus besoin d'observer
       socket.emit('player:joined', {
         playerId: outcome.player.id,
         code: room.code,
@@ -625,11 +640,16 @@ function getHostRoom(socket: Socket, roomManager: RoomManager): Room | null {
   return room;
 }
 
+// Room Socket.IO dédiée aux joueurs encore sur l'écran de choix d'équipe.
+function lobbyRoom(code: string): string {
+  return `lobby:${code}`;
+}
+
 function broadcastPlayers(io: IOServer, room: Room): void {
-  io.to(room.code).emit('room:players', {
-    players: room.listPlayers(),
-    teams: room.listTeams(),
-  });
+  const teams = room.listTeams();
+  io.to(room.code).emit('room:players', { players: room.listPlayers(), teams });
+  // Les joueurs encore sur l'écran de choix d'équipe ne voient que les équipes.
+  io.to(lobbyRoom(room.code)).emit('room:teams', { teams });
 }
 
 function notifyHostAnswerCount(io: IOServer, room: Room): void {

@@ -28,7 +28,9 @@ inclus et ce qui viendra ensuite.
   gagnés et leur place au classement.
 - **Mode Individuel ou Équipes** (au choix de l'hôte) : en mode équipes, chaque
   joueur est sur **son propre téléphone** mais rattaché à une équipe (rejointe ou
-  créée à la volée). L'équipe **vote ensemble** (tally en direct, vote modifiable) ;
+  créée à la volée). Le sélecteur d'équipe se **met à jour en direct** : les
+  équipes créées en parallèle sur d'autres téléphones apparaissent sans recharger.
+  L'équipe **vote ensemble** (tally en direct, vote modifiable) ;
   **un membre verrouille** la réponse quand l'équipe est d'accord (la plus votée).
   Si le timer se termine sans verrouillage, la **plus votée** est retenue
   (départage : la première option votée). Score **commun** ; classement/podium par équipe.

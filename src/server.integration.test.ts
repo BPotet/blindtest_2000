@@ -365,4 +365,33 @@ describe('Mode équipes (Socket.IO)', () => {
     // Bob partage le résultat commun de son équipe (bon).
     expect(res.results[bj.playerId].correct).toBe(true);
   });
+
+  it('pousse aux joueurs qui observent les équipes créées en parallèle', async () => {
+    const host = connectHost();
+    await once(host, 'connect');
+    host.emit('host:createRoom', { quizId: 'demo-tubes', mode: 'teams' });
+    const created = await once<any>(host, 'host:roomCreated');
+    const code = created.code;
+
+    // Un joueur encore sur l'écran de choix d'équipe : il observe la salle.
+    const watcher = connect();
+    await once(watcher, 'connect');
+    watcher.emit('player:watchRoom', { code });
+    const first = await once<any>(watcher, 'room:teams');
+    expect(first.teams).toHaveLength(0);
+
+    // Un autre téléphone crée une équipe -> l'observateur la reçoit en direct.
+    const update = once<any>(watcher, 'room:teams');
+    const creator = connect();
+    creator.emit('player:join', { code, pseudo: 'Zoé', team: 'Verts' });
+    await once<any>(creator, 'player:joined');
+    const pushed = await update;
+    expect(pushed.teams.map((t: any) => t.name)).toContain('Verts');
+
+    // Puis l'observateur rejoint cette équipe : il quitte la room d'observation
+    // et ne reçoit plus les MAJ « équipes seules ».
+    watcher.emit('player:join', { code, pseudo: 'Léo', team: 'Verts' });
+    const joined = await once<any>(watcher, 'player:joined');
+    expect(joined.teamName).toBe('Verts');
+  });
 });

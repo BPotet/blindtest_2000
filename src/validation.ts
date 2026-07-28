@@ -22,6 +22,12 @@ export const reconnectSchema = z.object({
   playerId: z.string().min(1).max(100),
 });
 
+// Un joueur encore sur l'écran de choix d'équipe « observe » la salle pour
+// recevoir en direct les équipes créées par d'autres téléphones.
+export const watchRoomSchema = z.object({
+  code: z.string().min(3).max(10),
+});
+
 export const hostReconnectSchema = z.object({
   code: z.string().min(3).max(10),
   hostToken: z.string().min(1).max(100),
