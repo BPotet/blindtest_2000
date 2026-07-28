@@ -101,7 +101,7 @@ const roundInputSchema = z.object({
 export const createQuizSchema = z
   .object({
     title: z.string().min(1).max(120),
-    rounds: z.array(roundInputSchema).min(1).max(30),
+    rounds: z.array(roundInputSchema).min(1).max(100),
   })
   .superRefine((data, ctx) => {
     data.rounds.forEach((round, index) => {
