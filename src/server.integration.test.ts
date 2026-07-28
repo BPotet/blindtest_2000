@@ -313,26 +313,41 @@ describe('Mode équipes (Socket.IO)', () => {
     host.emit('host:clipStarted');
     await Promise.all(qs);
 
-    // Alice (A) répond pour Rouge ; Bob (B, même équipe) est verrouillé.
-    const bLocked = once<any>(b, 'player:teamLocked');
+    // Vote d'équipe : Rouge (A+B) vote 0 (bonne réponse) -> verrouillage à la majorité.
+    const waitForLock = (socket: ClientSocket) =>
+      new Promise<any>((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error('pas de verrouillage')), 5000);
+        const h = (p: any) => {
+          if (p.locked) {
+            socket.off('player:teamVotes', h);
+            clearTimeout(t);
+            resolve(p);
+          }
+        };
+        socket.on('player:teamVotes', h);
+      });
+
+    const rougeLock = waitForLock(a);
     a.emit('player:answer', { optionIndex: 0 }); // demo-tubes r1 correctIndex = 0
     await once(a, 'player:answerAccepted');
-    const locked = await bLocked;
-    expect(locked.by).toBe('A');
-    c.emit('player:answer', { optionIndex: 1 }); // Bleu, faux
+    b.emit('player:answer', { optionIndex: 0 });
+    await once(b, 'player:answerAccepted');
+    const locked = await rougeLock;
+    expect(locked.lockedIndex).toBe(0);
+
+    c.emit('player:answer', { optionIndex: 1 }); // Bleu (seul) -> faux
     await once(c, 'player:answerAccepted');
 
     const resP = once<any>(host, 'round:result');
     host.emit('host:endRound');
     const res = await resP;
 
-    // Classement par équipe : Rouge (bonne réponse via A) devant Bleu.
+    // Classement par équipe : Rouge (bon vote) devant Bleu.
     expect(res.leaderboard).toHaveLength(2);
     expect(res.leaderboard[0].pseudo).toBe('Rouge');
     expect(res.leaderboard[0].rank).toBe(1);
     expect(res.leaderboard[0].score).toBeGreaterThan(res.leaderboard[1].score);
-    // Bob partage le résultat de son équipe (bon), crédité à A.
+    // Bob partage le résultat commun de son équipe (bon).
     expect(res.results[bj.playerId].correct).toBe(true);
-    expect(res.results[bj.playerId].answeredBy).toBe('A');
   });
 });

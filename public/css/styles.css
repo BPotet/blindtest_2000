@@ -209,6 +209,7 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
 .option.correct { outline: 4px solid #fff; box-shadow: 0 0 0 4px var(--success); }
 .option.chosen { outline: 4px solid #fff; }
 .option-lock { margin-left: auto; font-size: 20px; flex-shrink: 0; animation: pop 0.3s ease; }
+.vote-count { margin-left: auto; min-width: 28px; height: 28px; padding: 0 7px; border-radius: 999px; background: rgba(0,0,0,0.3); color: #fff; font-weight: 800; font-size: 15px; align-items: center; justify-content: center; flex-shrink: 0; }
 
 /* Résultat joueur */
 .result-banner { text-align: center; padding: 28px; border-radius: var(--radius); margin-bottom: 16px; }

@@ -6,6 +6,7 @@
   const state = {
     code: null, playerId: null, pseudo: null, answered: false, lastChoice: null, timer: null,
     awaiting: false, mode: 'solo', teamId: null, teamName: null,
+    options: [], myVote: null, teamLocked: false, teamAnswerIndex: null,
   };
 
   // Identifiant utilisé pour surligner « moi » dans le classement : l'équipe en
@@ -54,13 +55,36 @@
       btn.className = 'option';
       btn.dataset.c = String(i % 6);
       btn.dataset.i = String(i);
-      btn.innerHTML = `<span class="option__shape">${OPTION_SHAPES[i % 6]}</span><span>${escapeHtml(opt)}</span>`;
+      btn.innerHTML =
+        `<span class="option__shape">${OPTION_SHAPES[i % 6]}</span>` +
+        `<span>${escapeHtml(opt)}</span>` +
+        `<span class="vote-count" data-count="${i}" style="display:none"></span>`;
       btn.onclick = () => submitAnswer(i, btn);
       box.appendChild(btn);
     });
   }
 
+  function renderVoteCounts(counts) {
+    $$('#q-options .vote-count').forEach((el) => {
+      const n = counts[Number(el.dataset.count)] || 0;
+      el.textContent = n > 0 ? String(n) : '';
+      el.style.display = n > 0 ? 'inline-flex' : 'none';
+    });
+  }
+
   function submitAnswer(i, btn) {
+    if (state.teamLocked) return;
+
+    if (state.mode === 'teams') {
+      // Vote d'équipe : modifiable tant que l'équipe n'est pas verrouillée.
+      state.myVote = i;
+      socket.emit('player:answer', { optionIndex: i });
+      window.App.Sound.tick();
+      $$('#q-options .option').forEach((b) => b.classList.toggle('chosen', Number(b.dataset.i) === i));
+      return;
+    }
+
+    // Solo : le tap verrouille définitivement.
     if (state.answered) return;
     state.answered = true;
     state.lastChoice = i;
@@ -87,10 +111,14 @@
     state.answered = false;
     state.lastChoice = null;
     state.awaiting = false; // la manche est ouverte : ne plus clobberer les propositions
+    state.options = pr.options;
+    state.myVote = null;
+    state.teamLocked = false;
+    state.teamAnswerIndex = null;
     show('screen-question');
     $('#q-progress').textContent = `Manche ${pr.roundIndex + 1} / ${pr.totalRounds}`;
     $('#q-text').textContent = pr.question;
-    $('#q-status').textContent = 'À toi de jouer !';
+    $('#q-status').textContent = state.mode === 'teams' ? '🗳️ Votez pour votre équipe !' : 'À toi de jouer !';
     renderOptions(pr.options);
     startTimer(pr.durationSeconds);
   }
@@ -174,12 +202,25 @@
 
   socket.on('player:answerRejected', (p) => toast(p.reason || 'Réponse refusée.'));
 
-  // Mode équipes : un coéquipier a répondu en premier -> on verrouille.
-  socket.on('player:teamLocked', (p) => {
-    if (state.answered) return;
-    state.answered = true;
-    $$('#q-options .option').forEach((b) => { b.disabled = true; });
-    $('#q-status').textContent = `🔒 ${p.by || 'Un coéquipier'} a répondu pour l'équipe`;
+  // Mode équipes : tally de vote en direct + verrouillage à la majorité.
+  socket.on('player:teamVotes', (p) => {
+    renderVoteCounts(p.counts || []);
+    if (p.locked) {
+      state.teamLocked = true;
+      state.answered = true;
+      state.teamAnswerIndex = p.lockedIndex;
+      $$('#q-options .option').forEach((b) => {
+        b.disabled = true;
+        const idx = Number(b.dataset.i);
+        b.classList.toggle('chosen', idx === p.lockedIndex);
+        if (idx !== p.lockedIndex) b.classList.add('dimmed');
+      });
+      const label = state.options[p.lockedIndex] ?? '';
+      $('#q-status').textContent = `🔒 Équipe verrouillée sur : ${label}`;
+      window.App.Sound.go();
+    } else {
+      $('#q-status').textContent = `🗳️ Votez ensemble… (${p.voted}/${p.connected} ont voté)`;
+    }
   });
 
   socket.on('round:result', (p) => {
@@ -205,7 +246,7 @@
       options: p.options,
       distribution: p.distribution,
       correctIndex: p.correctIndex,
-      chosenIndex: state.lastChoice,
+      chosenIndex: state.mode === 'teams' ? state.teamAnswerIndex : state.lastChoice,
     });
     renderLeaderboard($('#feedback-leaderboard'), p.leaderboard, lbId());
   });

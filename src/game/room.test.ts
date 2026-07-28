@@ -214,38 +214,61 @@ describe('Room — mode équipes', () => {
     expect(room.listTeams()[0].memberCount).toBe(2);
   });
 
-  it('une seule réponse par équipe : la 1re verrouille, score commun', () => {
+  it('vote d\'équipe : votes modifiables, verrouillage quand tous ont voté, score commun', () => {
     const room = new Room(makeQuiz(), 'ABCDE', 'teams');
     const a = room.addPlayer('Alice', 's1', 'Rouge');
     const b = room.addPlayer('Bob', 's2', 'Rouge');
     const c = room.addPlayer('Carol', 's3', 'Bleu');
     if (!('player' in a) || !('player' in b) || !('player' in c)) throw new Error();
+    const rougeId = a.player.teamId!;
     room.startNextRound();
     room.markClipStarted(0);
-    // Alice répond juste pour Rouge ; Bob (même équipe) est refusé.
-    expect(room.submitAnswer(a.player.id, 1, 0).accepted).toBe(true); // correctIndex = 1
-    const bob = room.submitAnswer(b.player.id, 0, 0);
-    expect(bob.accepted).toBe(false);
-    if (!bob.accepted) expect(bob.reason).toMatch(/équipe/i);
-    // Bob compte déjà comme ayant répondu (via son équipe).
+
+    // Alice vote, l'équipe n'est pas encore verrouillée (Bob n'a pas voté).
+    expect(room.submitAnswer(a.player.id, 1, 100).accepted).toBe(true); // correctIndex = 1
+    expect(room.getTeamVoteState(rougeId).locked).toBe(false);
+    // Alice change d'avis (vote modifiable).
+    room.submitAnswer(a.player.id, 0, 150);
+    expect(room.getTeamVoteState(rougeId).counts).toEqual([1, 0, 0]);
+    // Alice revient sur la bonne, Bob confirme -> tout le monde a voté -> verrouillé sur 1.
+    room.submitAnswer(a.player.id, 1, 200);
+    room.submitAnswer(b.player.id, 1, 250);
+    const st = room.getTeamVoteState(rougeId);
+    expect(st.locked).toBe(true);
+    expect(st.lockedIndex).toBe(1);
+    // Après verrouillage, plus de vote possible.
+    expect(room.submitAnswer(b.player.id, 0, 300).accepted).toBe(false);
     expect(room.hasAnswered(b.player.id)).toBe(true);
-    room.submitAnswer(c.player.id, 0, 0); // Bleu, faux
+
+    room.submitAnswer(c.player.id, 0, 100); // Bleu (seul membre) -> verrouillé sur 0 (faux)
 
     const result = room.endRound();
-    expect(result).not.toBeNull();
-    expect(result!.answeredCount).toBe(2); // 2 équipes ont répondu
-    expect(result!.totalPlayers).toBe(2); // 2 équipes en jeu
-    // Bob partage le résultat (bon) de Rouge sans avoir tapé, crédité à Alice.
+    expect(result!.answeredCount).toBe(2);
+    expect(result!.totalPlayers).toBe(2);
     const bobRes = result!.perPlayer.get(b.player.id)!;
-    expect(bobRes.correct).toBe(true);
-    expect(bobRes.answeredBy).toBe('Alice');
-
+    expect(bobRes.correct).toBe(true); // résultat commun à l'équipe
     const lb = room.leaderboard();
     expect(lb[0].pseudo).toBe('Rouge');
     expect(lb[0].rank).toBe(1);
     expect(lb[0].score).toBeGreaterThan(lb[1].score);
-    const rouge = room.listTeams().find((t) => t.name === 'Rouge');
-    expect(lb[0].score).toBe(rouge!.score);
+  });
+
+  it('vote d\'équipe : une majorité stricte verrouille sans attendre tout le monde', () => {
+    const room = new Room(makeQuiz(), 'ABCDE', 'teams');
+    const a = room.addPlayer('A', 's1', 'Rouge');
+    const b = room.addPlayer('B', 's2', 'Rouge');
+    const c = room.addPlayer('C', 's3', 'Rouge'); // équipe de 3
+    if (!('player' in a) || !('player' in b) || !('player' in c)) throw new Error();
+    const rougeId = a.player.teamId!;
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(a.player.id, 1, 100);
+    expect(room.getTeamVoteState(rougeId).locked).toBe(false);
+    room.submitAnswer(b.player.id, 1, 200); // 2/3 sur l'option 1 -> majorité stricte
+    const st = room.getTeamVoteState(rougeId);
+    expect(st.locked).toBe(true);
+    expect(st.lockedIndex).toBe(1);
+    expect(room.submitAnswer(c.player.id, 0, 300).accepted).toBe(false); // trop tard
   });
 
   it('reste en solo par défaut (pas d\'équipe requise)', () => {

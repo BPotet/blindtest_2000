@@ -511,11 +511,12 @@ function wireSockets(
         return;
       }
       socket.emit('player:answerAccepted', { optionIndex: parsed.data.optionIndex });
-      // Mode équipes : la 1re réponse verrouille les coéquipiers.
-      if (room.mode === 'teams') {
-        const me = room.getPlayer(data.playerId);
-        for (const sid of room.getTeammateSocketIds(data.playerId)) {
-          io.to(sid).emit('player:teamLocked', { by: me?.pseudo ?? null });
+      // Mode équipes : diffuse le tally de vote à toute l'équipe (et l'état de
+      // verrouillage : l'équipe se verrouille à la majorité ou quand tous ont voté).
+      if (room.mode === 'teams' && outcome.teamId) {
+        const voteState = room.getTeamVoteState(outcome.teamId);
+        for (const sid of room.getTeamMemberSocketIds(outcome.teamId)) {
+          io.to(sid).emit('player:teamVotes', voteState);
         }
       }
       notifyHostAnswerCount(io, room);

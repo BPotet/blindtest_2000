@@ -39,6 +39,30 @@ interface RecordedAnswer {
 }
 
 /**
+ * Détermine l'option gagnante d'un vote d'équipe : plus grand nombre de voix,
+ * départage par le vote le plus précoce (la première option vers laquelle
+ * l'équipe a penché). Renvoie null si aucun vote.
+ */
+function teamWinner(
+  votes: Map<string, { optionIndex: number; atMs: number }>,
+): { optionIndex: number; count: number } | null {
+  const acc = new Map<number, { count: number; earliest: number }>();
+  for (const v of votes.values()) {
+    const e = acc.get(v.optionIndex) ?? { count: 0, earliest: Infinity };
+    e.count += 1;
+    e.earliest = Math.min(e.earliest, v.atMs);
+    acc.set(v.optionIndex, e);
+  }
+  let best: { optionIndex: number; count: number; earliest: number } | null = null;
+  for (const [optionIndex, { count, earliest }] of acc) {
+    if (!best || count > best.count || (count === best.count && earliest < best.earliest)) {
+      best = { optionIndex, count, earliest };
+    }
+  }
+  return best ? { optionIndex: best.optionIndex, count: best.count } : null;
+}
+
+/**
  * Une salle de jeu isolée. Toute la logique de partie (état, réponses, scoring)
  * vit ici ; la couche Socket.IO ne fait qu'appeler ces méthodes et diffuser les
  * résultats. Aucune donnée d'une salle n'est accessible depuis une autre.
@@ -57,6 +81,9 @@ export class Room {
   private readonly players = new Map<string, Player>();
   private readonly teams = new Map<string, Team>();
   private answers = new Map<string, RecordedAnswer>();
+  // Mode équipes : votes par membre + réponse verrouillée par équipe.
+  private teamVotes = new Map<string, Map<string, { optionIndex: number; atMs: number }>>();
+  private teamLock = new Map<string, { optionIndex: number; elapsedMs: number }>();
   readonly mode: RoomMode;
   createdAt = Date.now();
   lastActivityAt = Date.now();
@@ -189,21 +216,17 @@ export class Room {
     return this.players.size;
   }
 
-  /** Identifiant de l'unité qui répond : l'équipe en mode équipes, sinon le joueur. */
-  private unitIdOf(player: Player): string | null {
-    return this.mode === 'teams' ? player.teamId : player.id;
-  }
-
+  /** Une unité a "répondu" = solo : le joueur a voté ; équipes : l'équipe est verrouillée. */
   hasAnswered(playerId: string): boolean {
     const player = this.players.get(playerId);
     if (!player) return false;
-    const unitId = this.unitIdOf(player);
-    return unitId ? this.answers.has(unitId) : false;
+    if (this.mode === 'teams') return player.teamId ? this.teamLock.has(player.teamId) : false;
+    return this.answers.has(playerId);
   }
 
-  /** Nombre d'unités ayant déjà répondu à la manche en cours. */
+  /** Nombre d'unités ayant validé leur réponse (équipes verrouillées / joueurs ayant voté). */
   answeredUnitCount(): number {
-    return this.answers.size;
+    return this.mode === 'teams' ? this.teamLock.size : this.answers.size;
   }
 
   /** Nombre total d'unités pouvant répondre (équipes en mode équipes, sinon joueurs). */
@@ -211,13 +234,54 @@ export class Room {
     return this.mode === 'teams' ? this.teams.size : this.players.size;
   }
 
-  /** Sockets connectés des autres membres de l'équipe du joueur (pour verrouiller). */
-  getTeammateSocketIds(playerId: string): string[] {
-    const player = this.players.get(playerId);
-    if (!player || !player.teamId) return [];
+  /** Sockets connectés de tous les membres d'une équipe (pour diffuser le tally). */
+  getTeamMemberSocketIds(teamId: string): string[] {
     return [...this.players.values()]
-      .filter((p) => p.teamId === player.teamId && p.id !== playerId && p.socketId)
+      .filter((p) => p.teamId === teamId && p.socketId)
       .map((p) => p.socketId as string);
+  }
+
+  /** État de vote courant d'une équipe (pour affichage du tally + verrouillage). */
+  getTeamVoteState(teamId: string): {
+    counts: number[];
+    voted: number;
+    connected: number;
+    locked: boolean;
+    lockedIndex: number | null;
+  } {
+    const round = this.quiz.rounds[this.currentRoundIndex];
+    const optionCount = round ? round.options.length : 0;
+    const counts = new Array<number>(optionCount).fill(0);
+    const votes = this.teamVotes.get(teamId);
+    if (votes) {
+      for (const v of votes.values()) {
+        if (v.optionIndex >= 0 && v.optionIndex < optionCount) counts[v.optionIndex] += 1;
+      }
+    }
+    const connected = [...this.players.values()].filter(
+      (p) => p.teamId === teamId && p.connected,
+    ).length;
+    const lock = this.teamLock.get(teamId);
+    return {
+      counts,
+      voted: votes ? votes.size : 0,
+      connected,
+      locked: !!lock,
+      lockedIndex: lock ? lock.optionIndex : null,
+    };
+  }
+
+  private finalTeamAnswer(
+    teamId: string,
+    answerWindowMs: number,
+  ): { optionIndex: number; elapsedMs: number } | null {
+    const lock = this.teamLock.get(teamId);
+    if (lock) return lock;
+    const votes = this.teamVotes.get(teamId);
+    if (!votes || votes.size === 0) return null;
+    const winner = teamWinner(votes);
+    // Pas de verrouillage anticipé -> pas de bonus de vitesse (fenêtre pleine).
+    return winner ? { optionIndex: winner.optionIndex, elapsedMs: answerWindowMs } : null;
   }
 
   // ---- Déroulé de la partie ---------------------------------------------
@@ -240,6 +304,8 @@ export class Room {
     this.clipStarted = false;
     this.roundStartedAt = 0;
     this.answers = new Map();
+    this.teamVotes = new Map();
+    this.teamLock = new Map();
     this.touch();
 
     const publicRound: PublicRound = {
@@ -283,7 +349,7 @@ export class Room {
     playerId: string,
     optionIndex: number,
     now = Date.now(),
-  ): { accepted: true } | { accepted: false; reason: string } {
+  ): { accepted: true; teamId?: string } | { accepted: false; reason: string } {
     if (this.state !== 'playing') {
       return { accepted: false, reason: 'Aucune manche en cours.' };
     }
@@ -294,21 +360,48 @@ export class Room {
     if (!player) {
       return { accepted: false, reason: 'Joueur inconnu.' };
     }
-    const unitId = this.unitIdOf(player);
-    if (!unitId) {
-      return { accepted: false, reason: 'Aucune équipe.' };
-    }
-    if (this.answers.has(unitId)) {
-      return {
-        accepted: false,
-        reason: this.mode === 'teams' ? 'Ton équipe a déjà répondu.' : 'Réponse déjà enregistrée.',
-      };
-    }
     const round = this.quiz.rounds[this.currentRoundIndex];
     if (!round || optionIndex < 0 || optionIndex >= round.options.length) {
       return { accepted: false, reason: 'Réponse invalide.' };
     }
-    this.answers.set(unitId, { optionIndex, elapsedMs: now - this.roundStartedAt, byPlayerId: playerId });
+
+    if (this.mode === 'teams') {
+      const teamId = player.teamId;
+      if (!teamId) return { accepted: false, reason: 'Aucune équipe.' };
+      if (this.teamLock.has(teamId)) {
+        return { accepted: false, reason: 'Ton équipe a déjà validé sa réponse.' };
+      }
+      let votes = this.teamVotes.get(teamId);
+      if (!votes) {
+        votes = new Map();
+        this.teamVotes.set(teamId, votes);
+      }
+      votes.set(playerId, { optionIndex, atMs: now - this.roundStartedAt }); // vote modifiable
+
+      // Verrouillage : majorité stricte des connectés, OU tout le monde a voté.
+      const connected = [...this.players.values()].filter(
+        (p) => p.teamId === teamId && p.connected,
+      ).length;
+      const winner = teamWinner(votes);
+      if (winner && (winner.count > connected / 2 || votes.size >= connected)) {
+        this.teamLock.set(teamId, {
+          optionIndex: winner.optionIndex,
+          elapsedMs: now - this.roundStartedAt,
+        });
+      }
+      this.touch();
+      return { accepted: true, teamId };
+    }
+
+    // Solo : première (et unique) réponse du joueur.
+    if (this.answers.has(playerId)) {
+      return { accepted: false, reason: 'Réponse déjà enregistrée.' };
+    }
+    this.answers.set(playerId, {
+      optionIndex,
+      elapsedMs: now - this.roundStartedAt,
+      byPlayerId: playerId,
+    });
     this.touch();
     return { accepted: true };
   }
@@ -355,12 +448,21 @@ export class Room {
     };
 
     if (this.mode === 'teams') {
-      // Une seule réponse par équipe : tous les membres partagent le résultat.
+      // Réponse commune décidée au vote : tous les membres partagent le résultat.
       for (const team of this.teams.values()) {
-        const answer = this.answers.get(team.id);
-        const { correct, points } = tally(answer);
+        const final = this.finalTeamAnswer(team.id, answerWindowMs);
+        const correct = final ? final.optionIndex === round.correctIndex : false;
+        const points = final
+          ? computeScore({ correct, elapsedMs: final.elapsedMs, answerWindowMs })
+          : 0;
         team.score += points;
-        const answeredBy = answer ? this.players.get(answer.byPlayerId)?.pseudo ?? null : null;
+        if (final) {
+          answeredCount += 1;
+          if (final.optionIndex >= 0 && final.optionIndex < distribution.length) {
+            distribution[final.optionIndex] += 1;
+          }
+        }
+        if (correct) correctCount += 1;
         for (const p of this.players.values()) {
           if (p.teamId !== team.id) continue;
           perPlayer.set(p.id, {
@@ -369,7 +471,7 @@ export class Room {
             correctIndex: round.correctIndex,
             answerLabel: round.answerLabel,
             totalScore: team.score,
-            answeredBy,
+            answeredBy: null,
           });
         }
       }
