@@ -195,6 +195,8 @@ export function buildServer(
       quizTitle: room.quiz.title,
       totalRounds: room.totalRounds,
       playerCount: room.playerCount,
+      mode: room.mode,
+      teams: room.listTeams(),
     });
   });
 
@@ -298,7 +300,7 @@ function wireSockets(
         return;
       }
       data.userId = uid;
-      const room = roomManager.create(quiz);
+      const room = roomManager.create(quiz, parsed.data.mode ?? 'solo');
       room.hostSocketId = socket.id;
       data.role = 'host';
       data.code = room.code;
@@ -308,7 +310,9 @@ function wireSockets(
         hostToken: room.hostToken,
         quizTitle: quiz.title,
         totalRounds: room.totalRounds,
+        mode: room.mode,
         players: room.listPlayers(),
+        teams: room.listTeams(),
       });
     });
 
@@ -331,9 +335,11 @@ function wireSockets(
         code: room.code,
         quizTitle: room.quiz.title,
         totalRounds: room.totalRounds,
+        mode: room.mode,
         state: room.getState(),
         currentRoundIndex: room.getCurrentRoundIndex(),
         players: room.listPlayers(),
+        teams: room.listTeams(),
         leaderboard: room.leaderboard(),
       });
     });
@@ -427,7 +433,7 @@ function wireSockets(
         socket.emit('player:error', { message: "Cette salle n'existe pas.", fatal: true });
         return;
       }
-      const outcome = room.addPlayer(parsed.data.pseudo, socket.id);
+      const outcome = room.addPlayer(parsed.data.pseudo, socket.id, parsed.data.team);
       if ('error' in outcome) {
         socket.emit('player:error', { message: outcome.error });
         return;
@@ -442,6 +448,9 @@ function wireSockets(
         quizTitle: room.quiz.title,
         totalRounds: room.totalRounds,
         state: room.getState(),
+        mode: room.mode,
+        teamId: outcome.player.teamId ?? null,
+        teamName: outcome.player.teamName ?? null,
       });
       broadcastPlayers(io, room);
     });
@@ -472,6 +481,9 @@ function wireSockets(
         quizTitle: room.quiz.title,
         totalRounds: room.totalRounds,
         state: room.getState(),
+        mode: room.mode,
+        teamId: view.teamId ?? null,
+        teamName: view.teamName ?? null,
         score: view.score,
         alreadyAnswered: room.hasAnswered(view.id),
         publicRound:
@@ -535,7 +547,10 @@ function getHostRoom(socket: Socket, roomManager: RoomManager): Room | null {
 }
 
 function broadcastPlayers(io: IOServer, room: Room): void {
-  io.to(room.code).emit('room:players', { players: room.listPlayers() });
+  io.to(room.code).emit('room:players', {
+    players: room.listPlayers(),
+    teams: room.listTeams(),
+  });
 }
 
 function notifyHostAnswerCount(io: IOServer, room: Room): void {

@@ -50,11 +50,23 @@ export interface HostRound extends PublicRound {
 
 export type RoomState = 'lobby' | 'playing' | 'roundResult' | 'ended';
 
+/** Mode de jeu choisi par l'hôte à l'ouverture de la salle. */
+export type RoomMode = 'solo' | 'teams';
+
 export interface PlayerView {
   id: string;
   pseudo: string;
   score: number;
   connected: boolean;
+  teamId?: string | null;
+  teamName?: string | null;
+}
+
+export interface TeamView {
+  id: string;
+  name: string;
+  memberCount: number;
+  score: number;
 }
 
 export interface LeaderboardEntry {

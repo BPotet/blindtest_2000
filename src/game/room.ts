@@ -1,7 +1,9 @@
 import type {
   Quiz,
   RoomState,
+  RoomMode,
   PlayerView,
+  TeamView,
   LeaderboardEntry,
   PublicRound,
   HostRound,
@@ -18,6 +20,12 @@ interface Player {
   score: number;
   connected: boolean;
   socketId: string | null;
+  teamId: string | null;
+}
+
+interface Team {
+  id: string;
+  name: string;
 }
 
 interface RecordedAnswer {
@@ -43,14 +51,21 @@ export class Room {
   /** Vrai une fois que l'extrait a réellement commencé à jouer chez l'hôte. */
   private clipStarted = false;
   private readonly players = new Map<string, Player>();
+  private readonly teams = new Map<string, Team>();
   private answers = new Map<string, RecordedAnswer>();
+  readonly mode: RoomMode;
   createdAt = Date.now();
   lastActivityAt = Date.now();
 
-  constructor(quiz: Quiz, code = generateRoomCode()) {
+  constructor(quiz: Quiz, code = generateRoomCode(), mode: RoomMode = 'solo') {
     this.quiz = quiz;
     this.code = code;
+    this.mode = mode;
     this.hostToken = generateId('host');
+  }
+
+  getMode(): RoomMode {
+    return this.mode;
   }
 
   private touch(): void {
@@ -75,8 +90,15 @@ export class Room {
 
   // ---- Joueurs -----------------------------------------------------------
 
-  /** Ajoute un joueur (uniquement dans le lobby). Renvoie le joueur ou une erreur. */
-  addPlayer(rawPseudo: string, socketId: string): { player: PlayerView } | { error: string } {
+  /**
+   * Ajoute un joueur (uniquement dans le lobby). En mode équipes, `rawTeamName`
+   * est requis : le joueur rejoint l'équipe existante de ce nom, ou la crée.
+   */
+  addPlayer(
+    rawPseudo: string,
+    socketId: string,
+    rawTeamName?: string,
+  ): { player: PlayerView } | { error: string } {
     if (this.state !== 'lobby') {
       return { error: 'La partie a déjà commencé.' };
     }
@@ -90,12 +112,28 @@ export class Room {
     if (taken) {
       return { error: 'Ce pseudo est déjà pris dans cette salle.' };
     }
+
+    let teamId: string | null = null;
+    if (this.mode === 'teams') {
+      const teamName = (rawTeamName ?? '').trim().slice(0, MAX_PSEUDO_LENGTH);
+      if (teamName.length === 0) {
+        return { error: 'Choisis ou crée une équipe.' };
+      }
+      const existing = [...this.teams.values()].find(
+        (t) => t.name.toLowerCase() === teamName.toLowerCase(),
+      );
+      const team = existing ?? { id: generateId('t'), name: teamName };
+      if (!existing) this.teams.set(team.id, team);
+      teamId = team.id;
+    }
+
     const player: Player = {
       id: generateId('p'),
       pseudo,
       score: 0,
       connected: true,
       socketId,
+      teamId,
     };
     this.players.set(player.id, player);
     this.touch();
@@ -131,6 +169,19 @@ export class Room {
 
   listPlayers(): PlayerView[] {
     return [...this.players.values()].map((p) => this.toView(p));
+  }
+
+  /** Équipes avec leur nombre de membres et leur score cumulé (mode équipes). */
+  listTeams(): TeamView[] {
+    return [...this.teams.values()].map((t) => {
+      const members = [...this.players.values()].filter((p) => p.teamId === t.id);
+      return {
+        id: t.id,
+        name: t.name,
+        memberCount: members.length,
+        score: members.reduce((sum, p) => sum + p.score, 0),
+      };
+    });
   }
 
   get playerCount(): number {
@@ -294,19 +345,35 @@ export class Room {
     this.touch();
   }
 
+  /**
+   * Classement : par équipe en mode équipes (score = somme des membres), par
+   * joueur en mode solo. Dans les deux cas, `playerId` porte l'identifiant de
+   * l'entité classée (joueur ou équipe) et `pseudo` son nom.
+   */
   leaderboard(): LeaderboardEntry[] {
+    if (this.mode === 'teams') return this.teamLeaderboard();
     const ranked = rankPlayers(
       [...this.players.values()].map((p) => ({ id: p.id, pseudo: p.pseudo, score: p.score })),
     );
     return ranked.map((p) => ({ playerId: p.id, pseudo: p.pseudo, score: p.score, rank: p.rank }));
   }
 
+  private teamLeaderboard(): LeaderboardEntry[] {
+    const ranked = rankPlayers(
+      this.listTeams().map((t) => ({ id: t.id, pseudo: t.name, score: t.score })),
+    );
+    return ranked.map((t) => ({ playerId: t.id, pseudo: t.pseudo, score: t.score, rank: t.rank }));
+  }
+
   private toView(player: Player): PlayerView {
+    const team = player.teamId ? this.teams.get(player.teamId) : null;
     return {
       id: player.id,
       pseudo: player.pseudo,
       score: player.score,
       connected: player.connected,
+      teamId: player.teamId,
+      teamName: team ? team.name : null,
     };
   }
 }
@@ -315,12 +382,12 @@ export class Room {
 export class RoomManager {
   private readonly rooms = new Map<string, Room>();
 
-  create(quiz: Quiz): Room {
+  create(quiz: Quiz, mode: RoomMode = 'solo'): Room {
     let code = generateRoomCode();
     while (this.rooms.has(code)) {
       code = generateRoomCode();
     }
-    const room = new Room(quiz, code);
+    const room = new Room(quiz, code, mode);
     this.rooms.set(code, room);
     return room;
   }

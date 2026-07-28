@@ -20,6 +20,10 @@ inclus et ce qui viendra ensuite.
 - **Joueurs** (mobile) : rejoignent avec un code + un pseudo, répondent au QCM (le
   premier tap verrouille la réponse), voient s'ils ont eu bon/faux, les points
   gagnés et leur place au classement.
+- **Mode Individuel ou Équipes** (au choix de l'hôte) : en mode équipes, chaque
+  joueur est sur **son propre téléphone** mais rattaché à une équipe (rejointe ou
+  créée à la volée) ; le score de l'équipe est la **somme** de ses membres, et le
+  classement/podium se font par équipe.
 - **Scoring serveur infalsifiable** : les points (base + bonus de vitesse) sont
   calculés **uniquement à partir d'horodatages serveur** — aucune valeur envoyée
   par le client n'est utilisée.

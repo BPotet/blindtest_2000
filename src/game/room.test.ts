@@ -196,6 +196,52 @@ describe('Room — reconnexion', () => {
   });
 });
 
+describe('Room — mode équipes', () => {
+  it('exige une équipe en mode équipes', () => {
+    const room = new Room(makeQuiz(), 'ABCDE', 'teams');
+    expect('error' in room.addPlayer('Alice', 's1')).toBe(true);
+    expect('error' in room.addPlayer('Alice', 's1', '   ')).toBe(true);
+  });
+
+  it('crée puis rejoint une équipe (insensible à la casse)', () => {
+    const room = new Room(makeQuiz(), 'ABCDE', 'teams');
+    const a = room.addPlayer('Alice', 's1', 'Les Bleus');
+    const b = room.addPlayer('Bob', 's2', 'les bleus');
+    if (!('player' in a) || !('player' in b)) throw new Error();
+    expect(a.player.teamName).toBe('Les Bleus');
+    expect(b.player.teamId).toBe(a.player.teamId);
+    expect(room.listTeams()).toHaveLength(1);
+    expect(room.listTeams()[0].memberCount).toBe(2);
+  });
+
+  it('classe les équipes par somme des scores des membres', () => {
+    const room = new Room(makeQuiz(), 'ABCDE', 'teams');
+    const a = room.addPlayer('Alice', 's1', 'Rouge');
+    const b = room.addPlayer('Bob', 's2', 'Rouge');
+    const c = room.addPlayer('Carol', 's3', 'Bleu');
+    if (!('player' in a) || !('player' in b) || !('player' in c)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(a.player.id, 1, 0); // correctIndex = 1
+    room.submitAnswer(b.player.id, 1, 0);
+    room.submitAnswer(c.player.id, 0, 0); // faux
+    room.endRound();
+    const lb = room.leaderboard();
+    expect(lb).toHaveLength(2);
+    expect(lb[0].pseudo).toBe('Rouge');
+    expect(lb[0].rank).toBe(1);
+    expect(lb[0].score).toBeGreaterThan(lb[1].score);
+    const rouge = room.listTeams().find((t) => t.name === 'Rouge');
+    expect(lb[0].score).toBe(rouge!.score);
+  });
+
+  it('reste en solo par défaut (pas d\'équipe requise)', () => {
+    const room = new Room(makeQuiz(), 'ABCDE');
+    expect(room.getMode()).toBe('solo');
+    expect('player' in room.addPlayer('Alice', 's1')).toBe(true);
+  });
+});
+
 describe('RoomManager — isolation', () => {
   it('crée des salles avec des codes uniques', () => {
     const mgr = new RoomManager();

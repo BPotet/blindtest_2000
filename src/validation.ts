@@ -7,11 +7,13 @@ import { parseYouTubeId } from './game/youtube';
 
 export const createRoomSchema = z.object({
   quizId: z.string().min(1).max(100),
+  mode: z.enum(['solo', 'teams']).optional(),
 });
 
 export const joinRoomSchema = z.object({
   code: z.string().min(3).max(10),
   pseudo: z.string().min(1).max(40),
+  team: z.string().max(40).optional(),
 });
 
 export const reconnectSchema = z.object({

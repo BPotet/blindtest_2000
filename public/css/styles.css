@@ -133,6 +133,21 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
 .quiz-item__title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .badge { font-size: 12px; color: var(--text-muted); }
 
+/* Sélecteur de mode (hôte) + chips d'équipe (joueur) */
+.mode-select { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 16px; }
+.chip-btn { appearance: none; border: 1px solid rgba(255,255,255,0.18); background: transparent; color: var(--text); border-radius: 999px; padding: 8px 16px; font-weight: 700; font-family: inherit; cursor: pointer; }
+.chip-btn.active { background: var(--accent); border-color: transparent; }
+.team-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.team-chip { appearance: none; border: 1px solid rgba(255,255,255,0.18); background: var(--surface-2); color: var(--text); border-radius: 999px; padding: 10px 16px; font-weight: 700; font-family: inherit; cursor: pointer; }
+.team-chip.selected { background: var(--accent); border-color: transparent; }
+
+/* Équipes dans le lobby (hôte) */
+.team-card { background: var(--surface-2); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 10px; }
+.team-card__head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.team-card__name { font-weight: 800; font-size: 18px; }
+.team-card__count { color: var(--text-muted); font-size: 14px; }
+.team-card__members { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
 /* Lobby / code */
 .lobby-code {
   font-size: clamp(40px, 10vw, 84px);

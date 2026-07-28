@@ -17,6 +17,8 @@
     editingQuizId: null,
     clipStarted: false,
     clipFallback: null,
+    mode: 'solo', // mode choisi pour la prochaine salle
+    roomMode: 'solo', // mode de la salle en cours
   };
 
   // --- API YouTube IFrame -------------------------------------------------
@@ -116,7 +118,7 @@
         const open = document.createElement('button');
         open.className = 'btn';
         open.textContent = 'Ouvrir une salle';
-        open.onclick = () => socket.emit('host:createRoom', { quizId: q.id });
+        open.onclick = () => socket.emit('host:createRoom', { quizId: q.id, mode: state.mode });
         actions.appendChild(open);
 
         if (!q.isDemo) {
@@ -373,14 +375,16 @@
   socket.on('host:roomCreated', (p) => {
     state.code = p.code;
     state.hostToken = p.hostToken;
+    state.roomMode = p.mode || 'solo';
     localStorage.setItem('bt_host', JSON.stringify({ code: p.code, hostToken: p.hostToken }));
-    enterLobby(p.quizTitle, p.players);
+    enterLobby(p.quizTitle, p.players, p.teams);
   });
 
   socket.on('host:snapshot', (p) => {
     state.code = p.code;
+    state.roomMode = p.mode || 'solo';
     if (p.state === 'lobby') {
-      enterLobby(p.quizTitle, p.players);
+      enterLobby(p.quizTitle, p.players, p.teams);
     } else if (p.state === 'ended') {
       show('screen-ended');
       window.App.renderPodium($('#final-podium'), p.leaderboard, null);
@@ -397,7 +401,7 @@
     }
   });
 
-  socket.on('room:players', (p) => updatePlayers(p.players));
+  socket.on('room:players', (p) => updatePlayers(p.players, p.teams));
 
   socket.on('host:roundStarted', (p) => {
     state.round = p.hostRound;
@@ -462,31 +466,61 @@
   });
 
   // --- Écrans -------------------------------------------------------------
-  function enterLobby(quizTitle, players) {
+  function enterLobby(quizTitle, players, teams) {
     show('screen-lobby');
-    $('#lobby-quiz-title').textContent = quizTitle || '';
+    const suffix = state.roomMode === 'teams' ? ' · mode équipes' : '';
+    $('#lobby-quiz-title').textContent = (quizTitle || '') + suffix;
     $('#lobby-code').textContent = state.code;
     $('#lobby-code-inline').textContent = state.code;
     $('#lobby-qr').src = `/api/room/${state.code}/qr`;
     const joinUrl = `${location.origin}/join?code=${state.code}`;
     $('#lobby-url').textContent = joinUrl;
-    updatePlayers(players || []);
+    updatePlayers(players || [], teams || []);
   }
 
-  function updatePlayers(players) {
+  function playerChip(pl) {
+    const chip = document.createElement('span');
+    chip.className = 'player-chip' + (pl.connected ? '' : ' offline');
+    chip.innerHTML = `<span class="dot"></span>${escapeHtml(pl.pseudo)}`;
+    return chip;
+  }
+
+  function updatePlayers(players, teams) {
     const box = $('#lobby-players');
     if (!box) return;
     box.innerHTML = '';
-    players.forEach((pl) => {
-      const chip = document.createElement('div');
-      chip.className = 'player-chip' + (pl.connected ? '' : ' offline');
-      chip.innerHTML = `<span class="dot"></span>${escapeHtml(pl.pseudo)}`;
-      box.appendChild(chip);
-    });
+    box.style.display = state.roomMode === 'teams' ? 'block' : 'flex';
+
+    if (state.roomMode === 'teams') {
+      (teams || []).forEach((t) => {
+        const card = document.createElement('div');
+        card.className = 'team-card';
+        card.innerHTML =
+          `<div class="team-card__head"><span class="team-card__name">👥 ${escapeHtml(t.name)}</span>` +
+          `<span class="team-card__count">${t.memberCount} joueur(s)</span></div>`;
+        const mem = document.createElement('div');
+        mem.className = 'team-card__members';
+        players.filter((p) => p.teamId === t.id).forEach((pl) => mem.appendChild(playerChip(pl)));
+        card.appendChild(mem);
+        box.appendChild(card);
+      });
+      if (!teams || teams.length === 0) {
+        box.innerHTML = '<p class="muted">En attente des équipes…</p>';
+      }
+    } else {
+      players.forEach((pl) => box.appendChild(playerChip(pl)));
+    }
+
     $('#player-count').textContent = String(players.length);
     const can = players.length > 0;
     $('#start-game').disabled = !can;
     $('#start-hint').textContent = can ? 'Prêt à démarrer quand tu veux.' : "En attente d'au moins un joueur…";
+  }
+
+  function setMode(m) {
+    state.mode = m;
+    $('#mode-solo').classList.toggle('active', m === 'solo');
+    $('#mode-teams').classList.toggle('active', m === 'teams');
   }
 
   // --- Contrôles ----------------------------------------------------------
@@ -506,6 +540,8 @@
   $('#reveal-answer').onclick = () => { $('#reveal-answer').disabled = true; stopClip(); socket.emit('host:endRound'); };
   $('#next-round').onclick = () => socket.emit('host:startRound');
   $('#end-game').onclick = () => socket.emit('host:endGame');
+  $('#mode-solo').onclick = () => setMode('solo');
+  $('#mode-teams').onclick = () => setMode('teams');
   $('#login-btn').onclick = doLogin;
   $('#login-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
   $('#logout-btn').onclick = doLogout;

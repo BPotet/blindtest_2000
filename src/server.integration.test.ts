@@ -277,3 +277,57 @@ describe('Flux de partie de bout en bout (Socket.IO)', () => {
     expect(err.fatal).toBe(true);
   });
 });
+
+describe('Mode équipes (Socket.IO)', () => {
+  it('regroupe les joueurs par équipe et classe par équipe', async () => {
+    const host = connectHost();
+    await once(host, 'connect');
+    host.emit('host:createRoom', { quizId: 'demo-tubes', mode: 'teams' });
+    const created = await once<any>(host, 'host:roomCreated');
+    expect(created.mode).toBe('teams');
+    const code = created.code;
+
+    const a = connect();
+    a.emit('player:join', { code, pseudo: 'A', team: 'Rouge' });
+    const aj = await once<any>(a, 'player:joined');
+    expect(aj.teamName).toBe('Rouge');
+
+    const b = connect();
+    b.emit('player:join', { code, pseudo: 'B', team: 'rouge' }); // même équipe (casse)
+    const bj = await once<any>(b, 'player:joined');
+    expect(bj.teamId).toBe(aj.teamId);
+
+    const c = connect();
+    c.emit('player:join', { code, pseudo: 'C', team: 'Bleu' });
+    await once<any>(c, 'player:joined');
+
+    // Sans équipe en mode équipes -> refus.
+    const d = connect();
+    d.emit('player:join', { code, pseudo: 'D' });
+    const dErr = await once<any>(d, 'player:error');
+    expect(dErr.message).toMatch(/équipe/i);
+
+    host.emit('host:startRound');
+    await once(host, 'host:roundStarted');
+    const qs = [once(a, 'player:roundStarted'), once(b, 'player:roundStarted'), once(c, 'player:roundStarted')];
+    host.emit('host:clipStarted');
+    await Promise.all(qs);
+
+    a.emit('player:answer', { optionIndex: 0 }); // demo-tubes r1 correctIndex = 0
+    await once(a, 'player:answerAccepted');
+    b.emit('player:answer', { optionIndex: 0 });
+    await once(b, 'player:answerAccepted');
+    c.emit('player:answer', { optionIndex: 1 }); // faux
+    await once(c, 'player:answerAccepted');
+
+    const resP = once<any>(host, 'round:result');
+    host.emit('host:endRound');
+    const res = await resP;
+
+    // Classement par équipe : Rouge (2 bonnes) devant Bleu (0).
+    expect(res.leaderboard).toHaveLength(2);
+    expect(res.leaderboard[0].pseudo).toBe('Rouge');
+    expect(res.leaderboard[0].rank).toBe(1);
+    expect(res.leaderboard[0].score).toBeGreaterThan(res.leaderboard[1].score);
+  });
+});
