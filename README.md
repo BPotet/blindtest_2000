@@ -22,9 +22,10 @@ inclus et ce qui viendra ensuite.
   gagnés et leur place au classement.
 - **Mode Individuel ou Équipes** (au choix de l'hôte) : en mode équipes, chaque
   joueur est sur **son propre téléphone** mais rattaché à une équipe (rejointe ou
-  créée à la volée). L'équipe **vote ensemble** — tally en direct, vote
-  modifiable — et la réponse se **verrouille à la majorité** (ou quand tout le
-  monde a voté). Le score est **commun** à l'équipe ; classement/podium par équipe.
+  créée à la volée). L'équipe **vote ensemble** (tally en direct, vote modifiable) ;
+  **un membre verrouille** la réponse quand l'équipe est d'accord (la plus votée).
+  Si le timer se termine sans verrouillage, la **plus votée** est retenue
+  (départage : la première option votée). Score **commun** ; classement/podium par équipe.
 - **Scoring serveur infalsifiable** : les points (base + bonus de vitesse) sont
   calculés **uniquement à partir d'horodatages serveur** — aucune valeur envoyée
   par le client n'est utilisée.

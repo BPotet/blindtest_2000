@@ -119,6 +119,14 @@
     $('#q-progress').textContent = `Manche ${pr.roundIndex + 1} / ${pr.totalRounds}`;
     $('#q-text').textContent = pr.question;
     $('#q-status').textContent = state.mode === 'teams' ? '🗳️ Votez pour votre équipe !' : 'À toi de jouer !';
+    const lockBtn = $('#team-lock-btn');
+    if (state.mode === 'teams') {
+      lockBtn.style.display = '';
+      lockBtn.disabled = true;
+      lockBtn.textContent = '🔒 Verrouiller la réponse';
+    } else {
+      lockBtn.style.display = 'none';
+    }
     renderOptions(pr.options);
     startTimer(pr.durationSeconds);
   }
@@ -202,9 +210,11 @@
 
   socket.on('player:answerRejected', (p) => toast(p.reason || 'Réponse refusée.'));
 
-  // Mode équipes : tally de vote en direct + verrouillage à la majorité.
+  // Mode équipes : tally de vote en direct ; un membre verrouille quand il veut.
   socket.on('player:teamVotes', (p) => {
-    renderVoteCounts(p.counts || []);
+    const counts = p.counts || [];
+    renderVoteCounts(counts);
+    const lockBtn = $('#team-lock-btn');
     if (p.locked) {
       state.teamLocked = true;
       state.answered = true;
@@ -215,11 +225,17 @@
         b.classList.toggle('chosen', idx === p.lockedIndex);
         if (idx !== p.lockedIndex) b.classList.add('dimmed');
       });
-      const label = state.options[p.lockedIndex] ?? '';
-      $('#q-status').textContent = `🔒 Équipe verrouillée sur : ${label}`;
+      lockBtn.style.display = 'none';
+      $('#q-status').textContent = `🔒 Équipe verrouillée sur : ${state.options[p.lockedIndex] ?? ''}`;
       window.App.Sound.go();
     } else {
-      $('#q-status').textContent = `🗳️ Votez ensemble… (${p.voted}/${p.connected} ont voté)`;
+      // Leader courant (plus de voix, 1er index si égalité) pour le libellé du bouton.
+      let leader = -1;
+      let max = 0;
+      counts.forEach((n, i) => { if (n > max) { max = n; leader = i; } });
+      lockBtn.disabled = p.voted === 0;
+      lockBtn.textContent = leader >= 0 ? `🔒 Verrouiller : ${state.options[leader]}` : '🔒 Verrouiller la réponse';
+      $('#q-status').textContent = `🗳️ Votez, puis verrouillez (${p.voted}/${p.connected} ont voté)`;
     }
   });
 
@@ -338,6 +354,10 @@
     }
   }
 
+  $('#team-lock-btn').onclick = () => {
+    if (state.teamLocked) return;
+    socket.emit('player:teamLock');
+  };
   $('#join-btn').onclick = doJoin;
   $('#new-team').addEventListener('input', () => {
     $$('#team-chips .team-chip').forEach((c) => c.classList.remove('selected'));

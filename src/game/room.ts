@@ -377,18 +377,8 @@ export class Room {
         this.teamVotes.set(teamId, votes);
       }
       votes.set(playerId, { optionIndex, atMs: now - this.roundStartedAt }); // vote modifiable
-
-      // Verrouillage : majorité stricte des connectés, OU tout le monde a voté.
-      const connected = [...this.players.values()].filter(
-        (p) => p.teamId === teamId && p.connected,
-      ).length;
-      const winner = teamWinner(votes);
-      if (winner && (winner.count > connected / 2 || votes.size >= connected)) {
-        this.teamLock.set(teamId, {
-          optionIndex: winner.optionIndex,
-          elapsedMs: now - this.roundStartedAt,
-        });
-      }
+      // Pas de verrouillage automatique : un membre doit verrouiller (lockTeam),
+      // sinon la fin du timer tranchera avec la réponse la plus votée.
       this.touch();
       return { accepted: true, teamId };
     }
@@ -404,6 +394,25 @@ export class Room {
     });
     this.touch();
     return { accepted: true };
+  }
+
+  /**
+   * Verrouille la réponse d'une équipe à la demande d'un de ses membres. La
+   * réponse retenue est la plus votée (départage : le vote le plus précoce).
+   */
+  lockTeam(playerId: string, now = Date.now()): { locked: true; teamId: string } | { locked: false; reason: string } {
+    if (this.mode !== 'teams') return { locked: false, reason: 'Pas en mode équipes.' };
+    if (this.state !== 'playing') return { locked: false, reason: 'Aucune manche en cours.' };
+    const player = this.players.get(playerId);
+    if (!player || !player.teamId) return { locked: false, reason: 'Aucune équipe.' };
+    const teamId = player.teamId;
+    if (this.teamLock.has(teamId)) return { locked: false, reason: 'Déjà verrouillé.' };
+    const votes = this.teamVotes.get(teamId);
+    const winner = votes ? teamWinner(votes) : null;
+    if (!winner) return { locked: false, reason: 'Votez avant de verrouiller.' };
+    this.teamLock.set(teamId, { optionIndex: winner.optionIndex, elapsedMs: now - this.roundStartedAt });
+    this.touch();
+    return { locked: true, teamId };
   }
 
   /**

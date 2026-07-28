@@ -214,61 +214,71 @@ describe('Room — mode équipes', () => {
     expect(room.listTeams()[0].memberCount).toBe(2);
   });
 
-  it('vote d\'équipe : votes modifiables, verrouillage quand tous ont voté, score commun', () => {
+  it('vote d\'équipe : pas d\'auto-lock, verrouillage manuel par un membre (plus voté)', () => {
+    const room = new Room(makeQuiz(), 'ABCDE', 'teams');
+    const a = room.addPlayer('Alice', 's1', 'Rouge');
+    const b = room.addPlayer('Bob', 's2', 'Rouge');
+    if (!('player' in a) || !('player' in b)) throw new Error();
+    const rougeId = a.player.teamId!;
+    room.startNextRound();
+    room.markClipStarted(0);
+
+    // Les deux votent la bonne (1) : PAS de verrouillage automatique.
+    room.submitAnswer(a.player.id, 1, 100);
+    room.submitAnswer(b.player.id, 1, 200);
+    expect(room.getTeamVoteState(rougeId).locked).toBe(false);
+    // Alice change d'avis tant que non verrouillé.
+    room.submitAnswer(a.player.id, 0, 250);
+    expect(room.getTeamVoteState(rougeId).counts).toEqual([1, 1, 0]);
+    room.submitAnswer(a.player.id, 1, 300); // revient sur 1 -> Rouge = 2 voix sur 1
+
+    // N'importe quel membre verrouille -> réponse la plus votée (1).
+    const res = room.lockTeam(b.player.id, 400);
+    expect(res.locked).toBe(true);
+    const st = room.getTeamVoteState(rougeId);
+    expect(st.locked).toBe(true);
+    expect(st.lockedIndex).toBe(1);
+    // Après verrouillage : plus de vote ni de re-lock.
+    expect(room.submitAnswer(a.player.id, 0, 500).accepted).toBe(false);
+    expect(room.lockTeam(a.player.id, 500).locked).toBe(false);
+  });
+
+  it('vote d\'équipe : sans verrouillage, la fin du timer prend le plus voté (départage : 1er voté)', () => {
     const room = new Room(makeQuiz(), 'ABCDE', 'teams');
     const a = room.addPlayer('Alice', 's1', 'Rouge');
     const b = room.addPlayer('Bob', 's2', 'Rouge');
     const c = room.addPlayer('Carol', 's3', 'Bleu');
     if (!('player' in a) || !('player' in b) || !('player' in c)) throw new Error();
-    const rougeId = a.player.teamId!;
     room.startNextRound();
     room.markClipStarted(0);
-
-    // Alice vote, l'équipe n'est pas encore verrouillée (Bob n'a pas voté).
-    expect(room.submitAnswer(a.player.id, 1, 100).accepted).toBe(true); // correctIndex = 1
-    expect(room.getTeamVoteState(rougeId).locked).toBe(false);
-    // Alice change d'avis (vote modifiable).
-    room.submitAnswer(a.player.id, 0, 150);
-    expect(room.getTeamVoteState(rougeId).counts).toEqual([1, 0, 0]);
-    // Alice revient sur la bonne, Bob confirme -> tout le monde a voté -> verrouillé sur 1.
-    room.submitAnswer(a.player.id, 1, 200);
-    room.submitAnswer(b.player.id, 1, 250);
-    const st = room.getTeamVoteState(rougeId);
-    expect(st.locked).toBe(true);
-    expect(st.lockedIndex).toBe(1);
-    // Après verrouillage, plus de vote possible.
-    expect(room.submitAnswer(b.player.id, 0, 300).accepted).toBe(false);
-    expect(room.hasAnswered(b.player.id)).toBe(true);
-
-    room.submitAnswer(c.player.id, 0, 100); // Bleu (seul membre) -> verrouillé sur 0 (faux)
-
+    // Rouge : égalité 1-1, mais la bonne (1) a été votée en premier.
+    room.submitAnswer(a.player.id, 1, 100);
+    room.submitAnswer(b.player.id, 0, 200);
+    room.submitAnswer(c.player.id, 0, 100); // Bleu faux
+    // Personne ne verrouille -> la fin de manche tranche.
+    expect(room.getTeamVoteState(a.player.teamId!).locked).toBe(false);
     const result = room.endRound();
     expect(result!.answeredCount).toBe(2);
-    expect(result!.totalPlayers).toBe(2);
-    const bobRes = result!.perPlayer.get(b.player.id)!;
-    expect(bobRes.correct).toBe(true); // résultat commun à l'équipe
     const lb = room.leaderboard();
-    expect(lb[0].pseudo).toBe('Rouge');
-    expect(lb[0].rank).toBe(1);
+    expect(lb[0].pseudo).toBe('Rouge'); // départage -> option 1 (votée en premier) = bonne
     expect(lb[0].score).toBeGreaterThan(lb[1].score);
   });
 
-  it('vote d\'équipe : une majorité stricte verrouille sans attendre tout le monde', () => {
+  it('vote d\'équipe : verrouiller tôt rapporte plus que laisser filer le timer', () => {
     const room = new Room(makeQuiz(), 'ABCDE', 'teams');
-    const a = room.addPlayer('A', 's1', 'Rouge');
-    const b = room.addPlayer('B', 's2', 'Rouge');
-    const c = room.addPlayer('C', 's3', 'Rouge'); // équipe de 3
-    if (!('player' in a) || !('player' in b) || !('player' in c)) throw new Error();
-    const rougeId = a.player.teamId!;
+    const a = room.addPlayer('A', 's1', 'Tot');
+    const b = room.addPlayer('B', 's2', 'Tard');
+    if (!('player' in a) || !('player' in b)) throw new Error();
     room.startNextRound();
     room.markClipStarted(0);
     room.submitAnswer(a.player.id, 1, 100);
-    expect(room.getTeamVoteState(rougeId).locked).toBe(false);
-    room.submitAnswer(b.player.id, 1, 200); // 2/3 sur l'option 1 -> majorité stricte
-    const st = room.getTeamVoteState(rougeId);
-    expect(st.locked).toBe(true);
-    expect(st.lockedIndex).toBe(1);
-    expect(room.submitAnswer(c.player.id, 0, 300).accepted).toBe(false); // trop tard
+    room.lockTeam(a.player.id, 200); // "Tot" verrouille tôt
+    room.submitAnswer(b.player.id, 1, 300); // "Tard" vote juste mais ne verrouille pas
+    room.endRound();
+    const lb = room.leaderboard();
+    const tot = lb.find((e) => e.pseudo === 'Tot')!;
+    const tard = lb.find((e) => e.pseudo === 'Tard')!;
+    expect(tot.score).toBeGreaterThan(tard.score); // bonus de vitesse au verrouillage
   });
 
   it('reste en solo par défaut (pas d\'équipe requise)', () => {

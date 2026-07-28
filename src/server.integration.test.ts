@@ -332,10 +332,12 @@ describe('Mode équipes (Socket.IO)', () => {
     await once(a, 'player:answerAccepted');
     b.emit('player:answer', { optionIndex: 0 });
     await once(b, 'player:answerAccepted');
+    a.emit('player:teamLock'); // un membre verrouille -> réponse la plus votée (0)
     const locked = await rougeLock;
     expect(locked.lockedIndex).toBe(0);
 
-    c.emit('player:answer', { optionIndex: 1 }); // Bleu (seul) -> faux
+    // Bleu vote faux et ne verrouille pas -> tranché à la fin de manche.
+    c.emit('player:answer', { optionIndex: 1 });
     await once(c, 'player:answerAccepted');
 
     const resP = once<any>(host, 'round:result');

@@ -522,6 +522,23 @@ function wireSockets(
       notifyHostAnswerCount(io, room);
     });
 
+    // Mode équipes : un membre verrouille la réponse (la plus votée).
+    socket.on('player:teamLock', () => {
+      if (!data.code || !data.playerId) return;
+      const room = roomManager.get(data.code);
+      if (!room || room.mode !== 'teams') return;
+      const res = room.lockTeam(data.playerId);
+      if (!res.locked) {
+        socket.emit('player:answerRejected', { reason: res.reason });
+        return;
+      }
+      const voteState = room.getTeamVoteState(res.teamId);
+      for (const sid of room.getTeamMemberSocketIds(res.teamId)) {
+        io.to(sid).emit('player:teamVotes', voteState);
+      }
+      notifyHostAnswerCount(io, room);
+    });
+
     // ---- Déconnexion ---------------------------------------------------
 
     socket.on('disconnect', () => {
