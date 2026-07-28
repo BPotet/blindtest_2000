@@ -219,6 +219,19 @@ npm run typecheck # vérification TypeScript
   playlists (HTTP).
 - **Charge** : `src/load.test.ts` fait jouer **40 joueurs simultanés** sur une
   manche complète et vérifie le classement.
+- **e2e multi-navigateurs** (`e2e/`, Playwright) : une partie complète (login →
+  salle → un joueur → réponse → résultat) rejouée sur **Chromium (Chrome/Opera/
+  Edge), Firefox (Gecko) et WebKit (Safari)**. Le serveur est démarré
+  automatiquement et YouTube est neutralisé pour un test déterministe.
+
+```bash
+npm run test:e2e                 # les 3 navigateurs (nécessite « npx playwright install »)
+npm run test:e2e -- --project=chromium   # un seul navigateur
+```
+
+> Les 3 navigateurs tournent **à chaque push via GitHub Actions**
+> (`.github/workflows/e2e.yml`) — c'est là que Firefox et WebKit s'installent et
+> s'exécutent réellement.
 
 ### Test de charge sur une instance en ligne
 
