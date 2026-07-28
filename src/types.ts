@@ -76,11 +76,13 @@ export interface LeaderboardEntry {
   rank: number;
 }
 
-/** Résultat d'une manche pour un joueur donné. */
+/** Résultat d'une manche pour un joueur donné (ou pour son équipe en mode équipes). */
 export interface PlayerRoundResult {
   correct: boolean;
   pointsAwarded: number;
   correctIndex: number;
   answerLabel: string;
   totalScore: number;
+  /** En mode équipes : pseudo du coéquipier qui a répondu (null si personne). */
+  answeredBy?: string | null;
 }

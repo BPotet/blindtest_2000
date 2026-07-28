@@ -26,12 +26,16 @@ interface Player {
 interface Team {
   id: string;
   name: string;
+  /** Score cumulé de l'équipe (une réponse commune par manche). */
+  score: number;
 }
 
 interface RecordedAnswer {
   optionIndex: number;
   /** Temps de réponse mesuré côté serveur (ms depuis le début de la manche). */
   elapsedMs: number;
+  /** Joueur ayant réellement répondu (pour l'équipe, le premier à voter). */
+  byPlayerId: string;
 }
 
 /**
@@ -122,7 +126,7 @@ export class Room {
       const existing = [...this.teams.values()].find(
         (t) => t.name.toLowerCase() === teamName.toLowerCase(),
       );
-      const team = existing ?? { id: generateId('t'), name: teamName };
+      const team = existing ?? { id: generateId('t'), name: teamName, score: 0 };
       if (!existing) this.teams.set(team.id, team);
       teamId = team.id;
     }
@@ -171,25 +175,49 @@ export class Room {
     return [...this.players.values()].map((p) => this.toView(p));
   }
 
-  /** Équipes avec leur nombre de membres et leur score cumulé (mode équipes). */
+  /** Équipes avec leur nombre de membres et leur score commun (mode équipes). */
   listTeams(): TeamView[] {
-    return [...this.teams.values()].map((t) => {
-      const members = [...this.players.values()].filter((p) => p.teamId === t.id);
-      return {
-        id: t.id,
-        name: t.name,
-        memberCount: members.length,
-        score: members.reduce((sum, p) => sum + p.score, 0),
-      };
-    });
+    return [...this.teams.values()].map((t) => ({
+      id: t.id,
+      name: t.name,
+      memberCount: [...this.players.values()].filter((p) => p.teamId === t.id).length,
+      score: t.score,
+    }));
   }
 
   get playerCount(): number {
     return this.players.size;
   }
 
+  /** Identifiant de l'unité qui répond : l'équipe en mode équipes, sinon le joueur. */
+  private unitIdOf(player: Player): string | null {
+    return this.mode === 'teams' ? player.teamId : player.id;
+  }
+
   hasAnswered(playerId: string): boolean {
-    return this.answers.has(playerId);
+    const player = this.players.get(playerId);
+    if (!player) return false;
+    const unitId = this.unitIdOf(player);
+    return unitId ? this.answers.has(unitId) : false;
+  }
+
+  /** Nombre d'unités ayant déjà répondu à la manche en cours. */
+  answeredUnitCount(): number {
+    return this.answers.size;
+  }
+
+  /** Nombre total d'unités pouvant répondre (équipes en mode équipes, sinon joueurs). */
+  respondentCount(): number {
+    return this.mode === 'teams' ? this.teams.size : this.players.size;
+  }
+
+  /** Sockets connectés des autres membres de l'équipe du joueur (pour verrouiller). */
+  getTeammateSocketIds(playerId: string): string[] {
+    const player = this.players.get(playerId);
+    if (!player || !player.teamId) return [];
+    return [...this.players.values()]
+      .filter((p) => p.teamId === player.teamId && p.id !== playerId && p.socketId)
+      .map((p) => p.socketId as string);
   }
 
   // ---- Déroulé de la partie ---------------------------------------------
@@ -266,14 +294,21 @@ export class Room {
     if (!player) {
       return { accepted: false, reason: 'Joueur inconnu.' };
     }
-    if (this.answers.has(playerId)) {
-      return { accepted: false, reason: 'Réponse déjà enregistrée.' };
+    const unitId = this.unitIdOf(player);
+    if (!unitId) {
+      return { accepted: false, reason: 'Aucune équipe.' };
+    }
+    if (this.answers.has(unitId)) {
+      return {
+        accepted: false,
+        reason: this.mode === 'teams' ? 'Ton équipe a déjà répondu.' : 'Réponse déjà enregistrée.',
+      };
     }
     const round = this.quiz.rounds[this.currentRoundIndex];
     if (!round || optionIndex < 0 || optionIndex >= round.options.length) {
       return { accepted: false, reason: 'Réponse invalide.' };
     }
-    this.answers.set(playerId, { optionIndex, elapsedMs: now - this.roundStartedAt });
+    this.answers.set(unitId, { optionIndex, elapsedMs: now - this.roundStartedAt, byPlayerId: playerId });
     this.touch();
     return { accepted: true };
   }
@@ -303,13 +338,12 @@ export class Room {
     let answeredCount = 0;
     let correctCount = 0;
 
-    for (const player of this.players.values()) {
-      const answer = this.answers.get(player.id);
+    // Comptabilise une réponse d'unité (équipe ou joueur) dans les stats de manche.
+    const tally = (answer: RecordedAnswer | undefined): { correct: boolean; points: number } => {
       const correct = answer?.optionIndex === round.correctIndex;
-      const pointsAwarded = answer
+      const points = answer
         ? computeScore({ correct, elapsedMs: answer.elapsedMs, answerWindowMs })
         : 0;
-      player.score += pointsAwarded;
       if (answer) {
         answeredCount += 1;
         if (answer.optionIndex >= 0 && answer.optionIndex < distribution.length) {
@@ -317,13 +351,40 @@ export class Room {
         }
       }
       if (correct) correctCount += 1;
-      perPlayer.set(player.id, {
-        correct,
-        pointsAwarded,
-        correctIndex: round.correctIndex,
-        answerLabel: round.answerLabel,
-        totalScore: player.score,
-      });
+      return { correct, points };
+    };
+
+    if (this.mode === 'teams') {
+      // Une seule réponse par équipe : tous les membres partagent le résultat.
+      for (const team of this.teams.values()) {
+        const answer = this.answers.get(team.id);
+        const { correct, points } = tally(answer);
+        team.score += points;
+        const answeredBy = answer ? this.players.get(answer.byPlayerId)?.pseudo ?? null : null;
+        for (const p of this.players.values()) {
+          if (p.teamId !== team.id) continue;
+          perPlayer.set(p.id, {
+            correct,
+            pointsAwarded: points,
+            correctIndex: round.correctIndex,
+            answerLabel: round.answerLabel,
+            totalScore: team.score,
+            answeredBy,
+          });
+        }
+      }
+    } else {
+      for (const player of this.players.values()) {
+        const { correct, points } = tally(this.answers.get(player.id));
+        player.score += points;
+        perPlayer.set(player.id, {
+          correct,
+          pointsAwarded: points,
+          correctIndex: round.correctIndex,
+          answerLabel: round.answerLabel,
+          totalScore: player.score,
+        });
+      }
     }
 
     this.state = 'roundResult';
@@ -335,7 +396,7 @@ export class Room {
       distribution,
       answeredCount,
       correctCount,
-      totalPlayers: this.players.size,
+      totalPlayers: this.respondentCount(),
       perPlayer,
     };
   }

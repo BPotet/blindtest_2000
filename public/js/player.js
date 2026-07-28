@@ -4,8 +4,8 @@
   const socket = io();
 
   const state = {
-    code: null, playerId: null, answered: false, lastChoice: null, timer: null, awaiting: false,
-    mode: 'solo', teamId: null, teamName: null,
+    code: null, playerId: null, pseudo: null, answered: false, lastChoice: null, timer: null,
+    awaiting: false, mode: 'solo', teamId: null, teamName: null,
   };
 
   // Identifiant utilisé pour surligner « moi » dans le classement : l'équipe en
@@ -102,9 +102,10 @@
     state.mode = p.mode || 'solo';
     state.teamId = p.teamId || null;
     state.teamName = p.teamName || null;
+    state.pseudo = $('#join-pseudo').value.trim();
     localStorage.setItem('bt_player', JSON.stringify({ code: p.code, playerId: p.playerId }));
     show('screen-wait');
-    $('#wait-pseudo').textContent = $('#join-pseudo').value.trim();
+    $('#wait-pseudo').textContent = state.pseudo;
     $('#wait-quiz').textContent =
       (p.quizTitle ? `Quiz : ${p.quizTitle}` : '') + (state.teamName ? ` · 👥 ${state.teamName}` : '');
   });
@@ -173,6 +174,14 @@
 
   socket.on('player:answerRejected', (p) => toast(p.reason || 'Réponse refusée.'));
 
+  // Mode équipes : un coéquipier a répondu en premier -> on verrouille.
+  socket.on('player:teamLocked', (p) => {
+    if (state.answered) return;
+    state.answered = true;
+    $$('#q-options .option').forEach((b) => { b.disabled = true; });
+    $('#q-status').textContent = `🔒 ${p.by || 'Un coéquipier'} a répondu pour l'équipe`;
+  });
+
   socket.on('round:result', (p) => {
     stopTimer();
     const mine = state.playerId ? p.results[state.playerId] : null;
@@ -187,6 +196,9 @@
       banner.className = 'result-banner bad';
       $('#feedback-title').textContent = mine ? 'Raté 😬' : 'Manche terminée';
       $('#feedback-points').textContent = '+0';
+    }
+    if (state.mode === 'teams' && mine && mine.answeredBy && mine.answeredBy !== state.pseudo) {
+      $('#feedback-title').textContent += ` · répondu par ${mine.answeredBy}`;
     }
     $('#feedback-answer').textContent = `La réponse : ${p.answerLabel}`;
     window.App.renderDistribution($('#feedback-distribution'), {

@@ -443,7 +443,8 @@
         distribution: p.distribution,
         correctIndex: p.correctIndex,
       });
-      $('#result-correct-count').textContent = `${p.correctCount} / ${p.totalPlayers} ont trouvé`;
+      const unit = state.roomMode === 'teams' ? 'équipes ont trouvé' : 'ont trouvé';
+      $('#result-correct-count').textContent = `${p.correctCount} / ${p.totalPlayers} ${unit}`;
       renderLeaderboard($('#result-leaderboard'), p.leaderboard, null);
       $('#next-round').style.display = p.isLastRound ? 'none' : '';
     }, 1200);

@@ -214,7 +214,7 @@ describe('Room — mode équipes', () => {
     expect(room.listTeams()[0].memberCount).toBe(2);
   });
 
-  it('classe les équipes par somme des scores des membres', () => {
+  it('une seule réponse par équipe : la 1re verrouille, score commun', () => {
     const room = new Room(makeQuiz(), 'ABCDE', 'teams');
     const a = room.addPlayer('Alice', 's1', 'Rouge');
     const b = room.addPlayer('Bob', 's2', 'Rouge');
@@ -222,12 +222,25 @@ describe('Room — mode équipes', () => {
     if (!('player' in a) || !('player' in b) || !('player' in c)) throw new Error();
     room.startNextRound();
     room.markClipStarted(0);
-    room.submitAnswer(a.player.id, 1, 0); // correctIndex = 1
-    room.submitAnswer(b.player.id, 1, 0);
-    room.submitAnswer(c.player.id, 0, 0); // faux
-    room.endRound();
+    // Alice répond juste pour Rouge ; Bob (même équipe) est refusé.
+    expect(room.submitAnswer(a.player.id, 1, 0).accepted).toBe(true); // correctIndex = 1
+    const bob = room.submitAnswer(b.player.id, 0, 0);
+    expect(bob.accepted).toBe(false);
+    if (!bob.accepted) expect(bob.reason).toMatch(/équipe/i);
+    // Bob compte déjà comme ayant répondu (via son équipe).
+    expect(room.hasAnswered(b.player.id)).toBe(true);
+    room.submitAnswer(c.player.id, 0, 0); // Bleu, faux
+
+    const result = room.endRound();
+    expect(result).not.toBeNull();
+    expect(result!.answeredCount).toBe(2); // 2 équipes ont répondu
+    expect(result!.totalPlayers).toBe(2); // 2 équipes en jeu
+    // Bob partage le résultat (bon) de Rouge sans avoir tapé, crédité à Alice.
+    const bobRes = result!.perPlayer.get(b.player.id)!;
+    expect(bobRes.correct).toBe(true);
+    expect(bobRes.answeredBy).toBe('Alice');
+
     const lb = room.leaderboard();
-    expect(lb).toHaveLength(2);
     expect(lb[0].pseudo).toBe('Rouge');
     expect(lb[0].rank).toBe(1);
     expect(lb[0].score).toBeGreaterThan(lb[1].score);

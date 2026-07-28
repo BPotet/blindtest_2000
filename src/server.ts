@@ -355,7 +355,7 @@ function wireSockets(
       socket.emit('host:roundStarted', {
         hostRound: started.hostRound,
         answeredCount: 0,
-        playerCount: room.playerCount,
+        playerCount: room.respondentCount(),
       });
       // Les joueurs patientent pendant le chargement de la vidéo : la question
       // et le minuteur n'arrivent qu'au vrai démarrage de l'extrait.
@@ -390,13 +390,16 @@ function wireSockets(
         return;
       }
       const leaderboard = room.leaderboard();
-      const results: Record<string, { correct: boolean; pointsAwarded: number; totalScore: number }> =
-        {};
+      const results: Record<
+        string,
+        { correct: boolean; pointsAwarded: number; totalScore: number; answeredBy: string | null }
+      > = {};
       for (const [playerId, r] of result.perPlayer) {
         results[playerId] = {
           correct: r.correct,
           pointsAwarded: r.pointsAwarded,
           totalScore: r.totalScore,
+          answeredBy: r.answeredBy ?? null,
         };
       }
       io.to(room.code).emit('round:result', {
@@ -508,6 +511,13 @@ function wireSockets(
         return;
       }
       socket.emit('player:answerAccepted', { optionIndex: parsed.data.optionIndex });
+      // Mode équipes : la 1re réponse verrouille les coéquipiers.
+      if (room.mode === 'teams') {
+        const me = room.getPlayer(data.playerId);
+        for (const sid of room.getTeammateSocketIds(data.playerId)) {
+          io.to(sid).emit('player:teamLocked', { by: me?.pseudo ?? null });
+        }
+      }
       notifyHostAnswerCount(io, room);
     });
 
@@ -555,9 +565,8 @@ function broadcastPlayers(io: IOServer, room: Room): void {
 
 function notifyHostAnswerCount(io: IOServer, room: Room): void {
   if (!room.hostSocketId) return;
-  const answered = room.listPlayers().filter((p) => room.hasAnswered(p.id)).length;
   io.to(room.hostSocketId).emit('host:answerUpdate', {
-    answered,
-    playerCount: room.playerCount,
+    answered: room.answeredUnitCount(),
+    playerCount: room.respondentCount(),
   });
 }
