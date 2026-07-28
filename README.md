@@ -46,11 +46,12 @@ inclus et ce qui viendra ensuite.
   communes). Voir [Comptes hôte](#-comptes-hôte-plusieurs-organisateurs).
 - **Quiz de démonstration** livrés d'origine + **création, édition et
   suppression** de ses propres playlists depuis l'interface.
-- **Import d'une playlist YouTube** (semi-automatique) : colle le lien d'une
-  playlist **thématique**, et l'app fabrique **un QCM par morceau** — la bonne
-  réponse est le titre, les mauvaises sont d'autres titres de la playlist (donc
-  plausibles et dans le thème). Tu relis/ajustes dans le constructeur avant
-  d'enregistrer. Nécessite une clé API YouTube (voir
+- **Import d'une playlist YouTube** : colle le lien d'une playlist **thématique**,
+  et l'app fabrique **un QCM par morceau** — la bonne réponse est le titre, les
+  mauvaises sont d'autres titres de la playlist (donc plausibles et dans le
+  thème). Mode **« surprise »** : le blindtest est créé **sans que l'hôte voie
+  les morceaux** — il les découvre en jouant, comme les joueurs (ou mode
+  **relecture** pour tout vérifier). Nécessite une clé API YouTube (voir
   [Import de playlist](#-import-de-playlist-youtube)).
 - **Bonus de série (combo)** : points bonus croissants pour les bonnes réponses
   consécutives (+100 par palier, plafonné à +500), **activable/désactivable par
@@ -138,15 +139,22 @@ l'environnement (pratique comme premier accès) :
 
 Depuis l'écran d'accueil de l'hôte, **« 📥 Importer une playlist YouTube »** :
 colle le lien d'une playlist **thématique**, choisis le nombre de morceaux, le
-point de départ et la durée, puis **« ✨ Générer le blindtest »**. L'app :
+point de départ et la durée. L'app :
 
 1. récupère les **titres** de la playlist via l'API officielle **YouTube Data
    API v3** (métadonnées seulement — aucune extraction/téléchargement audio) ;
 2. nettoie les titres (retire « (Official Video) », « [Remastered] »…) ;
 3. crée **une manche par morceau** avec un QCM : bonne réponse = le titre,
-   mauvaises réponses = d'autres titres **de la même playlist** ;
-4. **pré-remplit le constructeur** pour que tu **relises et ajustes** (départs,
-   titres, ordre) avant d'enregistrer.
+   mauvaises réponses = d'autres titres **de la même playlist**.
+
+Deux boutons, selon que l'hôte veut ou non connaître le contenu :
+
+- **🎲 Générer en surprise** — le blindtest est **créé et enregistré directement,
+  sans jamais afficher les morceaux à l'hôte**. Il ne connaît ni les questions ni
+  les réponses : il **découvre le blindtest en jouant**, comme les joueurs.
+- **👁️ Générer et relire** — pré-remplit le **constructeur** pour **vérifier et
+  ajuster** (départs, titres, ordre) avant d'enregistrer. L'hôte voit alors les
+  réponses.
 
 Cette fonction n'apparaît que si une **clé API YouTube** est configurée :
 

@@ -199,7 +199,27 @@ export function buildServer(
         });
         return;
       }
-      res.json({ title: parsed.data.title?.trim() || 'Blindtest importé', rounds, count: rounds.length });
+      const title = parsed.data.title?.trim() || 'Blindtest importé';
+      if (parsed.data.save) {
+        // Mode « surprise » : on crée le quiz directement et on ne renvoie JAMAIS
+        // les morceaux — l'hôte ne connaît ni les questions ni les réponses.
+        const quiz = await quizRepo.create(
+          res.locals.userId as string,
+          title,
+          rounds.map((r) => ({
+            youtubeId: r.youtube,
+            startSeconds: r.startSeconds,
+            durationSeconds: r.durationSeconds,
+            question: r.question,
+            options: r.options,
+            correctIndex: r.correctIndex,
+            answerLabel: r.answerLabel,
+          })),
+        );
+        res.status(201).json({ id: quiz.id, title: quiz.title, count: quiz.rounds.length });
+        return;
+      }
+      res.json({ title, rounds, count: rounds.length });
     } catch (err) {
       if (err instanceof YouTubeImportError) {
         // 404 = lien fautif (client) ; le reste = souci en amont.

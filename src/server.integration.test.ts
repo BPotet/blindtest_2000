@@ -514,7 +514,7 @@ describe('Import YouTube — actif (fetcher injecté)', () => {
     expect(((await me.json()) as any).youtubeImport).toBe(true);
   });
 
-  it('génère un brouillon de quiz (une manche par morceau, QCM auto)', async () => {
+  it('mode relecture : génère un brouillon (une manche par morceau, QCM auto)', async () => {
     const res = await importReq({ url: 'https://www.youtube.com/playlist?list=PLgood12345678', title: 'Années 80', maxRounds: 3 });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
@@ -524,6 +524,19 @@ describe('Import YouTube — actif (fetcher injecté)', () => {
     expect(r.options[r.correctIndex]).toBe(r.answerLabel);
     expect(r.answerLabel).not.toMatch(/official/i); // titre nettoyé
     expect(r.options.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('mode surprise (save) : crée le quiz sans jamais renvoyer les morceaux', async () => {
+    const res = await importReq({ url: 'https://www.youtube.com/playlist?list=PLgood12345678', title: 'Mystère 80s', maxRounds: 4, save: true });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as any;
+    // On renvoie l'id + le nombre, mais AUCUN morceau/réponse.
+    expect(body.id).toBeTruthy();
+    expect(body.count).toBe(4);
+    expect(body.rounds).toBeUndefined();
+    // Le quiz apparait bien dans la liste de l'hôte (prêt à lancer).
+    const list = (await (await fetch(`http://localhost:${iPort}/api/quizzes`, { headers: { Cookie: iCookie } })).json()) as any;
+    expect(list.quizzes.some((q: any) => q.id === body.id && q.title === 'Mystère 80s')).toBe(true);
   });
 
   it('exige l\'authentification', async () => {

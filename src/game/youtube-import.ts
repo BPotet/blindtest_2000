@@ -122,8 +122,12 @@ export function buildRoundsFromVideos(
   const question = opts.question?.trim() || 'Quel est ce morceau ?';
 
   // Nettoyage, repli sur le titre brut si le nettoyage vide tout, filtrage.
+  // Titre borné à 100 caractères (options QCM lisibles + limites de validation).
   const cleaned = videos
-    .map((v) => ({ videoId: String(v.videoId || '').trim(), title: cleanTitle(v.title) || String(v.title || '').trim() }))
+    .map((v) => ({
+      videoId: String(v.videoId || '').trim(),
+      title: (cleanTitle(v.title) || String(v.title || '').trim()).slice(0, 100),
+    }))
     .filter((v) => v.videoId && v.title);
 
   const distinctTitles = [...new Set(cleaned.map((v) => v.title))];

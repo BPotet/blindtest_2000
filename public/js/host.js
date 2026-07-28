@@ -426,9 +426,11 @@
     } catch (_) { toast('Erreur réseau.'); }
   }
 
-  // Import « semi-automatique » : on récupère un brouillon (titre + manches) et
-  // on le charge dans le constructeur pour relecture avant enregistrement.
-  async function doImport() {
+  // Import depuis une playlist YouTube.
+  //  - save=true  : mode « surprise » — le serveur crée le quiz directement, sans
+  //    jamais renvoyer les morceaux (l'hôte ne connaît ni questions ni réponses).
+  //  - save=false : mode relecture — charge un brouillon dans le constructeur.
+  async function doImport(save) {
     const url = $('#import-url').value.trim();
     $('#import-error').textContent = '';
     if (!url) { $('#import-error').textContent = 'Colle le lien de la playlist YouTube.'; return; }
@@ -438,11 +440,13 @@
       maxRounds: Number($('#import-max').value) || 15,
       startSeconds: Number($('#import-start').value) || 0,
       durationSeconds: Number($('#import-dur').value) || 30,
+      save: !!save,
     };
-    const btn = $('#run-import');
-    btn.disabled = true;
-    const prev = btn.textContent;
-    btn.textContent = '⏳ Import en cours…';
+    const btns = [$('#run-import-blind'), $('#run-import-review')];
+    btns.forEach((b) => { b.disabled = true; });
+    const active = save ? $('#run-import-blind') : $('#run-import-review');
+    const prev = active.textContent;
+    active.textContent = '⏳ Génération…';
     try {
       const res = await fetch('/api/import/youtube', {
         method: 'POST',
@@ -451,14 +455,21 @@
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { $('#import-error').textContent = body.message || "Échec de l'import."; return; }
-      fillBuilderFromDraft(body.title, body.rounds);
       $('#import-panel').style.display = 'none';
-      toast(`✅ ${body.count} morceau(x) importé(s) — relis et enregistre.`);
+      $('#import-url').value = '';
+      if (save) {
+        // Surprise : on ne montre RIEN — juste la confirmation, et on rafraîchit la liste.
+        await loadQuizzes();
+        toast(`🎲 « ${body.title} » créé (${body.count} morceaux) — tu le découvriras en jouant !`);
+      } else {
+        fillBuilderFromDraft(body.title, body.rounds);
+        toast(`✅ ${body.count} morceau(x) importé(s) — relis et enregistre.`);
+      }
     } catch (_) {
       $('#import-error').textContent = 'Erreur réseau.';
     } finally {
-      btn.disabled = false;
-      btn.textContent = prev;
+      btns.forEach((b) => { b.disabled = false; });
+      active.textContent = prev;
     }
   }
 
@@ -785,8 +796,9 @@
     p.style.display = hidden ? 'block' : 'none';
     if (hidden) { $('#import-error').textContent = ''; $('#import-url').focus(); }
   };
-  $('#run-import').onclick = doImport;
-  $('#import-url').addEventListener('keydown', (e) => { if (e.key === 'Enter') doImport(); });
+  $('#run-import-blind').onclick = () => doImport(true);
+  $('#run-import-review').onclick = () => doImport(false);
+  $('#import-url').addEventListener('keydown', (e) => { if (e.key === 'Enter') doImport(true); });
   $('#add-round').onclick = () => addRoundBlock();
   $('#builder-rounds').addEventListener('click', onBuilderRoundsClick);
   $('#save-quiz').onclick = saveQuiz;
