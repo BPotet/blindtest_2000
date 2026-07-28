@@ -9,54 +9,73 @@
     options: [], myVote: null, teamLocked: false, teamAnswerIndex: null, streak: 0, paused: false,
     autoNextTimer: null,
     // Son sur le téléphone (si l'hôte l'a activé).
-    playerAudio: false, ytReady: false, yt: null, audioUnlocked: false, audioVideoId: null, audioStart: 0,
+    playerAudio: false, ytReady: false, yt: null, audioVideoId: null, audioStart: 0, audioFallbackTimer: null,
   };
 
   // --- Son sur le téléphone du joueur (lecteur YouTube caché, audio seul) ----
-  // L'autoplay mobile exige un geste : un bouton « Écouter » lance/relance le son.
+  // On tente la lecture AUTOMATIQUEMENT à chaque manche. Le bouton « Écouter »
+  // n'apparait qu'en secours si le navigateur bloque l'autoplay (mobile strict).
   window.onYouTubeIframeAPIReady = function () { state.ytReady = true; };
 
-  function setAudioLabel(playing) {
-    const btn = $('#player-audio-btn');
+  function setAudioPlayingLabel(playing) {
     const label = $('#player-audio-label');
     if (label) label.textContent = playing ? '🎧 Son en cours…' : '🎧 Son du blindtest';
-    if (btn) btn.textContent = playing ? '🔊 Son activé' : '🔊 Écouter le son';
+  }
+  function showAudioFallback() {
+    const btn = $('#player-audio-btn');
+    if (btn) { btn.style.display = ''; btn.textContent = '🔊 Appuie pour lancer le son'; }
+  }
+  function hideAudioFallback() {
+    const btn = $('#player-audio-btn');
+    if (btn) btn.style.display = 'none';
+  }
+  function isAudioPlaying() {
+    try { return state.yt && typeof state.yt.getPlayerState === 'function' && state.yt.getPlayerState() === 1; }
+    catch (_) { return false; }
   }
 
   function playAudio(videoId, start) {
     if (!videoId) return;
-    state.audioUnlocked = true;
     try {
       if (!state.yt) {
-        if (!state.ytReady || !window.YT || !window.YT.Player) return;
+        if (!state.ytReady || !window.YT || !window.YT.Player) { showAudioFallback(); return; }
         state.yt = new YT.Player('player-audio', {
           videoId,
           playerVars: { start, autoplay: 1, controls: 0, playsinline: 1, rel: 0, modestbranding: 1 },
-          events: { onReady: (e) => { try { e.target.seekTo(start, true); e.target.playVideo(); } catch (_) {} } },
+          events: {
+            onReady: (e) => { try { e.target.seekTo(start, true); e.target.playVideo(); } catch (_) {} },
+            // 1 = PLAYING : la lecture a démarré, on retire le bouton de secours.
+            onStateChange: (e) => { if (e.data === 1) { setAudioPlayingLabel(true); hideAudioFallback(); } },
+          },
         });
       } else {
         state.yt.loadVideoById({ videoId, startSeconds: start });
         state.yt.playVideo();
       }
-      setAudioLabel(true);
-    } catch (_) { /* lecteur indisponible : le joueur répond sans le son */ }
+    } catch (_) { showAudioFallback(); }
   }
 
   function stopAudio() {
+    clearTimeout(state.audioFallbackTimer);
     try { if (state.yt) state.yt.pauseVideo(); } catch (_) {}
-    setAudioLabel(false);
+    setAudioPlayingLabel(false);
+    hideAudioFallback();
   }
 
-  // Prépare le son de la manche : affiche le bloc, mémorise l'extrait, et tente
-  // une lecture auto si le joueur a déjà autorisé le son (sinon il tape le bouton).
+  // Prépare le son de la manche : affiche le bloc, mémorise l'extrait, et LANCE
+  // la lecture automatiquement. Si rien ne joue après 1,5 s (autoplay bloqué),
+  // on affiche le bouton de secours à taper.
   function setupRoundAudio(pr) {
     const section = $('#player-audio-section');
     if (!pr || !pr.audioYoutubeId) { if (section) section.style.display = 'none'; return; }
     state.audioVideoId = pr.audioYoutubeId;
     state.audioStart = pr.audioStartSeconds || 0;
     if (section) section.style.display = '';
-    setAudioLabel(false);
-    if (state.audioUnlocked) playAudio(state.audioVideoId, state.audioStart);
+    setAudioPlayingLabel(false);
+    hideAudioFallback();
+    clearTimeout(state.audioFallbackTimer);
+    playAudio(state.audioVideoId, state.audioStart);
+    state.audioFallbackTimer = setTimeout(() => { if (!isAudioPlaying()) showAudioFallback(); }, 1500);
   }
 
   // Mode auto : décompte visible côté joueur avant la manche suivante.
