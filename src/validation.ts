@@ -70,6 +70,12 @@ export const resumeSchema = z.object({
   remainingSeconds: z.number().min(0).max(600),
 });
 
+// Mode auto : l'hôte relaie aux joueurs le temps restant avant la manche suivante.
+export const autoNextSchema = z.object({
+  seconds: z.number().int().min(1).max(60),
+  isLast: z.boolean().optional(),
+});
+
 const roundInputSchema = z.object({
   youtube: z
     .string()

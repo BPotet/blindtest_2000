@@ -16,6 +16,7 @@ import {
   answerSchema,
   kickSchema,
   resumeSchema,
+  autoNextSchema,
   watchRoomSchema,
   credentialsSchema,
   importYoutubeSchema,
@@ -574,6 +575,20 @@ function wireSockets(
           isLastRound: room.isLastRound(),
         });
       }
+    });
+
+    // Mode auto : relaie aux joueurs le décompte avant l'enchaînement de la
+    // manche suivante (ils voient le temps restant sur l'écran de résultat).
+    socket.on('host:autoNext', (payload: unknown) => {
+      if (data.role !== 'host' || !data.code) return;
+      const room = roomManager.get(data.code);
+      if (!room) return;
+      const parsed = autoNextSchema.safeParse(payload);
+      if (!parsed.success) return;
+      socket.to(room.code).emit('round:autoNext', {
+        seconds: parsed.data.seconds,
+        isLast: Boolean(parsed.data.isLast),
+      });
     });
 
     socket.on('host:kickPlayer', (payload: unknown) => {

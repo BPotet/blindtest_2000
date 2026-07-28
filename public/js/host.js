@@ -691,6 +691,8 @@
     cancelAutoNext();
     const hint = $('#auto-next-hint');
     let remaining = Math.round(AUTO_NEXT_MS / 1000);
+    // Les joueurs voient le même décompte sur leur écran de résultat.
+    socket.emit('host:autoNext', { seconds: remaining, isLast: isLastRound });
     const label = () => {
       hint.textContent = isLastRound
         ? `🏁 Classement final dans ${remaining}…`

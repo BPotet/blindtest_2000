@@ -7,7 +7,39 @@
     code: null, playerId: null, pseudo: null, answered: false, lastChoice: null, timer: null,
     awaiting: false, mode: 'solo', teamId: null, teamName: null,
     options: [], myVote: null, teamLocked: false, teamAnswerIndex: null, streak: 0, paused: false,
+    autoNextTimer: null,
   };
+
+  // Mode auto : décompte visible côté joueur avant la manche suivante.
+  function clearAutoNext() {
+    clearInterval(state.autoNextTimer);
+    state.autoNextTimer = null;
+    const el = $('#feedback-autonext');
+    if (el) el.style.display = 'none';
+  }
+  function startAutoNextCountdown(seconds, isLast) {
+    clearAutoNext();
+    const el = $('#feedback-autonext');
+    if (!el) return;
+    let remaining = Math.max(1, Number(seconds) || 0);
+    const label = () => {
+      el.textContent = isLast
+        ? `🏁 Classement final dans ${remaining}…`
+        : `⏭️ Prochaine chanson dans ${remaining}…`;
+    };
+    el.style.display = '';
+    label();
+    state.autoNextTimer = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        el.textContent = isLast ? '🏁 Classement final…' : '⏭️ Chanson suivante…';
+        clearInterval(state.autoNextTimer);
+        state.autoNextTimer = null;
+      } else {
+        label();
+      }
+    }, 1000);
+  }
 
   // Identifiant utilisé pour surligner « moi » dans le classement : l'équipe en
   // mode équipes, le joueur en mode solo.
@@ -108,6 +140,7 @@
   }
 
   function enterQuestion(pr) {
+    clearAutoNext();
     state.answered = false;
     state.lastChoice = null;
     state.awaiting = false; // la manche est ouverte : ne plus clobberer les propositions
@@ -184,7 +217,11 @@
 
   // La manche se prépare (la vidéo charge chez l'hôte) : on patiente, pas de
   // minuteur ni de propositions tant que l'extrait n'a pas démarré.
+  // Mode auto : temps restant avant la manche suivante (affiché sur le résultat).
+  socket.on('round:autoNext', (p) => startAutoNextCountdown(p.seconds, p.isLast));
+
   socket.on('player:roundLoading', (p) => {
+    clearAutoNext();
     stopTimer();
     state.answered = false;
     state.lastChoice = null;
@@ -200,6 +237,7 @@
 
   // Décompte « 3·2·1 » synchronisé, puis on attend le vrai départ de l'extrait.
   socket.on('player:countdown', () => {
+    clearAutoNext();
     state.awaiting = true;
     window.App.playCountdown(3, () => {
       // Si la manche s'est déjà ouverte pendant le décompte, ne rien écraser.
@@ -343,6 +381,7 @@
   });
 
   function showFinal(leaderboard) {
+    clearAutoNext();
     show('screen-final');
     const me = leaderboard.find((e) => e.playerId === lbId());
     $('#final-rank').textContent = me ? `#${me.rank}` : '—';

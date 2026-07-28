@@ -255,6 +255,25 @@ describe('CRUD playlists (HTTP)', () => {
   });
 });
 
+describe('Mode auto — relais du décompte (Socket.IO)', () => {
+  it('relaie host:autoNext aux joueurs sous forme de round:autoNext', async () => {
+    const host = connectHost();
+    await once(host, 'connect');
+    host.emit('host:createRoom', { quizId: 'demo-tubes' });
+    const created = await once<any>(host, 'host:roomCreated');
+
+    const alice = connect();
+    alice.emit('player:join', { code: created.code, pseudo: 'Alice' });
+    await once<any>(alice, 'player:joined');
+
+    const received = once<any>(alice, 'round:autoNext');
+    host.emit('host:autoNext', { seconds: 6, isLast: false });
+    const p = await received;
+    expect(p.seconds).toBe(6);
+    expect(p.isLast).toBe(false);
+  });
+});
+
 describe('Flux de partie de bout en bout (Socket.IO)', () => {
   it('joue une manche complète : join, réponse, scoring serveur, classement', async () => {
     const host = connectHost();
