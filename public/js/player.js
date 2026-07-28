@@ -284,6 +284,18 @@
     renderLeaderboard($('#feedback-leaderboard'), p.leaderboard, lbId());
   });
 
+  // Partie annulée par l'hôte : on revient à l'écran d'attente.
+  socket.on('game:cancelled', () => {
+    clearAutoNext();
+    stopTimer();
+    state.answered = false;
+    state.paused = false;
+    state.teamLocked = false;
+    show('screen-wait');
+    $('#wait-pseudo').textContent = state.pseudo || '';
+    $('#wait-quiz').textContent = 'Partie annulée par l\'hôte' + (state.teamName ? ` · 👥 ${state.teamName}` : '');
+  });
+
   socket.on('player:kicked', () => {
     localStorage.removeItem('bt_player');
     stopTimer();

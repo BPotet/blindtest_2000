@@ -130,9 +130,19 @@ export function buildRoundsFromVideos(
     }))
     .filter((v) => v.videoId && v.title);
 
-  const distinctTitles = [...new Set(cleaned.map((v) => v.title))];
+  // Dédupe par titre nettoyé (une vidéo par titre distinct) : c'est aussi le
+  // vivier complet de mauvaises réponses (toute la playlist, pas que les manches).
+  const byTitle = new Map<string, { videoId: string; title: string }>();
+  for (const v of cleaned) if (!byTitle.has(v.title)) byTitle.set(v.title, v);
+  const uniqueVideos = [...byTitle.values()];
+  const distinctTitles = [...byTitle.keys()];
 
-  return cleaned.slice(0, maxRounds).map((v) => {
+  // Sélection ALÉATOIRE des morceaux joués (et ordre aléatoire) parmi toute la
+  // playlist importée : on mélange puis on garde `maxRounds` morceaux.
+  const chosen = shuffle(uniqueVideos, rng).slice(0, maxRounds);
+
+  return chosen.map((v) => {
+    // Distracteurs tirés de TOUTE la playlist (pas uniquement des manches jouées).
     const pool = distinctTitles.filter((t) => t !== v.title);
     const options = shuffle([v.title, ...pickRandom(pool, 3, rng)], rng);
     return {

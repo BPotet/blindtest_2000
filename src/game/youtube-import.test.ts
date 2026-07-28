@@ -59,6 +59,14 @@ const VIDEOS: PlaylistVideo[] = [
   { title: 'Europe - The Final Countdown', videoId: '9jK-NcRmVcw' },
 ];
 
+const CLEANED_TITLES = [
+  'A-ha - Take On Me',
+  'Queen - Bohemian Rhapsody',
+  'Michael Jackson - Billie Jean',
+  'Toto - Africa',
+  'Europe - The Final Countdown',
+];
+
 describe('buildRoundsFromVideos', () => {
   it('crée une manche par morceau avec la bonne réponse dans les options', () => {
     const rounds = buildRoundsFromVideos(VIDEOS, {}, seeded(42));
@@ -68,22 +76,35 @@ describe('buildRoundsFromVideos', () => {
       expect(r.options.length).toBeLessThanOrEqual(4);
       // La bonne réponse est bien celle désignée et correspond au label révélé.
       expect(r.options[r.correctIndex]).toBe(r.answerLabel);
-      // Options distinctes.
+      // Options distinctes, titres nettoyés, issus de la playlist.
       expect(new Set(r.options).size).toBe(r.options.length);
-      // Les titres sont nettoyés.
       expect(r.answerLabel).not.toMatch(/official|remaster/i);
+      expect(CLEANED_TITLES).toContain(r.answerLabel);
+      for (const opt of r.options) expect(CLEANED_TITLES).toContain(opt);
     }
-    // Titres nettoyés attendus.
-    expect(rounds[0].answerLabel).toBe('A-ha - Take On Me');
-    expect(rounds[0].youtube).toBe('djV11Xbc914');
+    // Chaque morceau de la playlist est joué une fois (ordre indifférent).
+    expect(new Set(rounds.map((r) => r.answerLabel))).toEqual(new Set(CLEANED_TITLES));
   });
 
-  it('les mauvaises réponses proviennent d\'autres titres de la playlist', () => {
-    const rounds = buildRoundsFromVideos(VIDEOS, {}, seeded(7));
-    const allTitles = new Set(rounds.map((r) => r.answerLabel));
-    for (const r of rounds) {
-      for (const opt of r.options) expect(allTitles.has(opt)).toBe(true);
-    }
+  it('sélectionne les morceaux joués AU HASARD (pas dans l\'ordre de la playlist)', () => {
+    // Avec des graines différentes, l'ordre/la sélection diffèrent.
+    const a = buildRoundsFromVideos(VIDEOS, { maxRounds: 3 }, seeded(1)).map((r) => r.answerLabel);
+    const b = buildRoundsFromVideos(VIDEOS, { maxRounds: 3 }, seeded(999)).map((r) => r.answerLabel);
+    expect(a).toHaveLength(3);
+    expect(a).not.toEqual(b); // tirage aléatoire, pas les 3 premiers dans l'ordre
+  });
+
+  it('tire les mauvaises réponses de TOUTE la playlist, pas que des manches jouées', () => {
+    // 8 morceaux, mais seulement 3 manches : les distracteurs doivent pouvoir
+    // venir des 5 morceaux non joués.
+    const many = Array.from({ length: 8 }, (_, i) => ({ title: `Artiste ${i} - Titre ${i}`, videoId: `vid${i}0000000`.slice(0, 11) }));
+    const rounds = buildRoundsFromVideos(many, { maxRounds: 3 }, seeded(3));
+    expect(rounds).toHaveLength(3);
+    const played = new Set(rounds.map((r) => r.answerLabel));
+    const allOptions = new Set(rounds.flatMap((r) => r.options));
+    // Au moins une proposition ne fait PAS partie des morceaux joués.
+    const fromOutside = [...allOptions].some((o) => !played.has(o));
+    expect(fromOutside).toBe(true);
   });
 
   it('respecte les options de départ/durée/nombre', () => {

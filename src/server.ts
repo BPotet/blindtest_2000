@@ -87,7 +87,9 @@ export function buildServer(
   const youtubeApiKey = opts.youtubeApiKey ?? process.env.YOUTUBE_API_KEY;
   const youtubeFetcher =
     opts.youtubeFetcher ??
-    (youtubeApiKey ? (id: string) => fetchPlaylistVideos(id, youtubeApiKey) : null);
+    // On récupère jusqu'à 200 morceaux : les manches jouées sont un tirage
+    // aléatoire là-dedans et les mauvaises réponses viennent de toute la playlist.
+    (youtubeApiKey ? (id: string) => fetchPlaylistVideos(id, youtubeApiKey, undefined, 200) : null);
   const youtubeImportEnabled = Boolean(youtubeFetcher);
 
   const sessionUserId = (req: Request): string | null => {
@@ -548,6 +550,18 @@ function wireSockets(
       if (!room) return;
       room.endGame();
       io.to(room.code).emit('game:ended', { leaderboard: room.leaderboard() });
+    });
+
+    // Annule la partie en cours et renvoie tout le monde au lobby (scores remis à zéro).
+    socket.on('host:cancelGame', () => {
+      const room = getHostRoom(socket, roomManager);
+      if (!room) return;
+      if (!room.cancelGame()) return;
+      io.to(room.code).emit('game:cancelled', {
+        quizTitle: room.quiz.title,
+        players: room.listPlayers(),
+        teams: room.listTeams(),
+      });
     });
 
     // ---- Contrôles hôte : pause, reprise, passer, exclure ---------------

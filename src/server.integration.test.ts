@@ -272,6 +272,31 @@ describe('Mode auto — relais du décompte (Socket.IO)', () => {
     expect(p.seconds).toBe(6);
     expect(p.isLast).toBe(false);
   });
+
+  it('annule la partie : les joueurs reçoivent game:cancelled et reviennent au lobby', async () => {
+    const host = connectHost();
+    await once(host, 'connect');
+    host.emit('host:createRoom', { quizId: 'demo-tubes' });
+    const created = await once<any>(host, 'host:roomCreated');
+
+    const alice = connect();
+    alice.emit('player:join', { code: created.code, pseudo: 'Alice' });
+    await once<any>(alice, 'player:joined');
+
+    host.emit('host:startRound');
+    await once<any>(host, 'host:roundStarted');
+
+    const cancelled = once<any>(alice, 'game:cancelled');
+    host.emit('host:cancelGame');
+    const c = await cancelled;
+    expect(c.players.map((pl: any) => pl.pseudo)).toContain('Alice');
+
+    // La partie repart : un nouveau joueur peut rejoindre (donc bien au lobby).
+    const bob = connect();
+    bob.emit('player:join', { code: created.code, pseudo: 'Bob' });
+    const bobJoined = await once<any>(bob, 'player:joined');
+    expect(bobJoined.playerId).toBeTruthy();
+  });
 });
 
 describe('Flux de partie de bout en bout (Socket.IO)', () => {

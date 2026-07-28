@@ -57,9 +57,11 @@ inclus et ce qui viendra ensuite.
   salle. L'écran de l'hôte devient le **grand écran** — la **vidéo est masquée**
   (audio seul, visualiseur animé) pour ne pas dévoiler le morceau — et la partie
   **s'enchaîne toute seule** (révélation automatique, manche suivante automatique,
-  podium final). Pendant l'attente, **les joueurs voient le décompte** avant la
-  chanson suivante (« ⏭️ Prochaine chanson dans 5… »). L'hôte **rejoint sur son
-  téléphone** comme un joueur : il ne
+  podium final). Le **délai d'attente entre les manches est réglable** (2–30 s), et
+  pendant l'attente **les joueurs voient le décompte** avant la chanson suivante
+  (« ⏭️ Prochaine chanson dans 5… »). Une partie peut être **annulée** à tout
+  moment (bouton *Annuler la partie*) pour revenir au lobby (scores remis à zéro).
+  L'hôte **rejoint sur son téléphone** comme un joueur : il ne
   connaît pas les réponses et **joue à égalité** avec les autres. Un seul clic
   **Démarrer** au début (nécessaire pour l'audio), puis plus rien à toucher.
 - **Bonus de série (combo)** : points bonus croissants pour les bonnes réponses
@@ -150,11 +152,14 @@ Depuis l'écran d'accueil de l'hôte, **« 📥 Importer une playlist YouTube »
 colle le lien d'une playlist **thématique**, choisis le nombre de morceaux, le
 point de départ et la durée. L'app :
 
-1. récupère les **titres** de la playlist via l'API officielle **YouTube Data
-   API v3** (métadonnées seulement — aucune extraction/téléchargement audio) ;
+1. récupère les **titres** de la playlist (jusqu'à 200) via l'API officielle
+   **YouTube Data API v3** (métadonnées seulement — aucune extraction/téléchargement) ;
 2. nettoie les titres (retire « (Official Video) », « [Remastered] »…) ;
-3. crée **une manche par morceau** avec un QCM : bonne réponse = le titre,
-   mauvaises réponses = d'autres titres **de la même playlist**.
+3. **tire au sort** les morceaux joués (sélection **et** ordre aléatoires) parmi
+   toute la playlist, puis crée **une manche par morceau** avec un QCM : bonne
+   réponse = le titre, mauvaises réponses = **3 autres titres tirés de toute la
+   playlist importée** (pas seulement des morceaux joués), à des positions
+   mélangées.
 
 Deux boutons, selon que l'hôte veut ou non connaître le contenu :
 

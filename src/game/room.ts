@@ -599,6 +599,27 @@ export class Room {
   }
 
   /**
+   * Annule la partie en cours : retour au lobby, scores et séries remis à zéro.
+   * Les joueurs restent dans la salle (ils patientent), l'hôte peut relancer.
+   */
+  cancelGame(): boolean {
+    if (this.state === 'lobby') return false;
+    this.state = 'lobby';
+    this.currentRoundIndex = -1;
+    this.clipStarted = false;
+    this.paused = false;
+    this.pausedAt = 0;
+    this.roundStartedAt = 0;
+    this.answers = new Map();
+    this.teamVotes = new Map();
+    this.teamLock = new Map();
+    for (const p of this.players.values()) { p.score = 0; p.streak = 0; }
+    for (const t of this.teams.values()) { t.score = 0; t.streak = 0; }
+    this.touch();
+    return true;
+  }
+
+  /**
    * Classement : par équipe en mode équipes (score = somme des membres), par
    * joueur en mode solo. Dans les deux cas, `playerId` porte l'identifiant de
    * l'entité classée (joueur ou équipe) et `pseudo` son nom.

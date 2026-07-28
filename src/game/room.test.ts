@@ -379,6 +379,29 @@ describe('Room — contrôles hôte', () => {
     expect(room.listPlayers().map((pl) => pl.pseudo)).toEqual(['Bob']);
     expect(room.removePlayer('inconnu')).toBeNull();
   });
+
+  it('annule la partie : retour au lobby, scores remis à zéro, relançable', () => {
+    const room = new Room(makeQuiz(), 'ABCDE');
+    const p = room.addPlayer('Alice', 's1');
+    if (!('player' in p)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(p.player.id, 1, 0); // bonne réponse
+    room.endRound();
+    expect(room.leaderboard()[0].score).toBeGreaterThan(0);
+
+    expect(room.cancelGame()).toBe(true);
+    expect(room.getState()).toBe('lobby');
+    expect(room.getCurrentRoundIndex()).toBe(-1);
+    expect(room.leaderboard()[0].score).toBe(0); // scores remis à zéro
+    // Un joueur peut de nouveau rejoindre (on est bien revenu au lobby).
+    expect('player' in room.addPlayer('Bob', 's2')).toBe(true);
+    // Et on peut relancer une manche.
+    expect(room.startNextRound()).not.toBeNull();
+    // Rien à annuler quand on est déjà au lobby.
+    const fresh = new Room(makeQuiz(), 'FGHIJ');
+    expect(fresh.cancelGame()).toBe(false);
+  });
 });
 
 describe('RoomManager — isolation', () => {
