@@ -300,7 +300,7 @@ function wireSockets(
         return;
       }
       data.userId = uid;
-      const room = roomManager.create(quiz, parsed.data.mode ?? 'solo');
+      const room = roomManager.create(quiz, parsed.data.mode ?? 'solo', parsed.data.combo ?? true);
       room.hostSocketId = socket.id;
       data.role = 'host';
       data.code = room.code;
@@ -311,6 +311,7 @@ function wireSockets(
         quizTitle: quiz.title,
         totalRounds: room.totalRounds,
         mode: room.mode,
+        combo: room.comboEnabled,
         players: room.listPlayers(),
         teams: room.listTeams(),
       });
@@ -392,7 +393,14 @@ function wireSockets(
       const leaderboard = room.leaderboard();
       const results: Record<
         string,
-        { correct: boolean; pointsAwarded: number; totalScore: number; answeredBy: string | null }
+        {
+          correct: boolean;
+          pointsAwarded: number;
+          totalScore: number;
+          answeredBy: string | null;
+          streak: number;
+          comboBonus: number;
+        }
       > = {};
       for (const [playerId, r] of result.perPlayer) {
         results[playerId] = {
@@ -400,6 +408,8 @@ function wireSockets(
           pointsAwarded: r.pointsAwarded,
           totalScore: r.totalScore,
           answeredBy: r.answeredBy ?? null,
+          streak: r.streak ?? 0,
+          comboBonus: r.comboBonus ?? 0,
         };
       }
       io.to(room.code).emit('round:result', {

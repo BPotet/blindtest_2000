@@ -85,4 +85,8 @@ export interface PlayerRoundResult {
   totalScore: number;
   /** En mode équipes : pseudo du coéquipier qui a répondu (null si personne). */
   answeredBy?: string | null;
+  /** Série de bonnes réponses consécutives (0 si la série est cassée ce tour). */
+  streak?: number;
+  /** Bonus de combo ajouté ce tour grâce à la série. */
+  comboBonus?: number;
 }

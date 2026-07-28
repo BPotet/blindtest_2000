@@ -217,6 +217,7 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
 .result-banner.bad { background: rgba(239, 68, 68, 0.16); border: 1px solid var(--danger); }
 .result-banner h2 { margin: 0; }
 .big-points { font-size: clamp(32px, 8vw, 56px); font-weight: 900; }
+.streak { color: #f59e0b; font-weight: 800; font-size: 18px; min-height: 22px; margin-top: 2px; }
 
 /* Classement */
 .leaderboard { display: grid; gap: 8px; }

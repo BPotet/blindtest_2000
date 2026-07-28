@@ -288,6 +288,58 @@ describe('Room — mode équipes', () => {
   });
 });
 
+describe('Room — combo (bonus de série)', () => {
+  it('applique un bonus de série croissant quand le combo est activé', () => {
+    const room = new Room(makeQuiz(), 'ABCDE', 'solo', true);
+    const p = room.addPlayer('Alice', 's1');
+    if (!('player' in p)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(p.player.id, 1, 0); // r1 correct (index 1) -> série 1
+    const r1 = room.endRound()!.perPlayer.get(p.player.id)!;
+    expect(r1.streak).toBe(1);
+    expect(r1.comboBonus).toBe(0);
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(p.player.id, 0, 0); // r2 correct (index 0) -> série 2 -> +100
+    const r2 = room.endRound()!.perPlayer.get(p.player.id)!;
+    expect(r2.streak).toBe(2);
+    expect(r2.comboBonus).toBe(100);
+  });
+
+  it('remet la série à zéro sur une mauvaise réponse', () => {
+    const room = new Room(makeQuiz(), 'ABCDE', 'solo', true);
+    const p = room.addPlayer('Alice', 's1');
+    if (!('player' in p)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(p.player.id, 1, 0); // bon
+    room.endRound();
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(p.player.id, 2, 0); // faux (r2 correct = 0)
+    const r = room.endRound()!.perPlayer.get(p.player.id)!;
+    expect(r.streak).toBe(0);
+    expect(r.comboBonus).toBe(0);
+  });
+
+  it('ne donne aucun bonus quand le combo est désactivé', () => {
+    const room = new Room(makeQuiz(), 'ABCDE', 'solo', false);
+    const p = room.addPlayer('Alice', 's1');
+    if (!('player' in p)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(p.player.id, 1, 0);
+    room.endRound();
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(p.player.id, 0, 0);
+    const r2 = room.endRound()!.perPlayer.get(p.player.id)!;
+    expect(r2.streak).toBe(2);
+    expect(r2.comboBonus).toBe(0);
+  });
+});
+
 describe('RoomManager — isolation', () => {
   it('crée des salles avec des codes uniques', () => {
     const mgr = new RoomManager();

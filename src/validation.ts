@@ -8,6 +8,7 @@ import { parseYouTubeId } from './game/youtube';
 export const createRoomSchema = z.object({
   quizId: z.string().min(1).max(100),
   mode: z.enum(['solo', 'teams']).optional(),
+  combo: z.boolean().optional(),
 });
 
 export const joinRoomSchema = z.object({

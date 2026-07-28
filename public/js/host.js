@@ -19,6 +19,7 @@
     clipFallback: null,
     mode: 'solo', // mode choisi pour la prochaine salle
     roomMode: 'solo', // mode de la salle en cours
+    combo: true, // bonus de série activé pour la prochaine salle
   };
 
   // --- API YouTube IFrame -------------------------------------------------
@@ -118,7 +119,7 @@
         const open = document.createElement('button');
         open.className = 'btn';
         open.textContent = 'Ouvrir une salle';
-        open.onclick = () => socket.emit('host:createRoom', { quizId: q.id, mode: state.mode });
+        open.onclick = () => socket.emit('host:createRoom', { quizId: q.id, mode: state.mode, combo: state.combo });
         actions.appendChild(open);
 
         if (!q.isDemo) {
@@ -524,6 +525,12 @@
     $('#mode-teams').classList.toggle('active', m === 'teams');
   }
 
+  function setCombo(on) {
+    state.combo = on;
+    $('#combo-on').classList.toggle('active', on);
+    $('#combo-off').classList.toggle('active', !on);
+  }
+
   // --- Contrôles ----------------------------------------------------------
   $('#toggle-builder').onclick = () => {
     const b = $('#builder');
@@ -543,6 +550,8 @@
   $('#end-game').onclick = () => socket.emit('host:endGame');
   $('#mode-solo').onclick = () => setMode('solo');
   $('#mode-teams').onclick = () => setMode('teams');
+  $('#combo-on').onclick = () => setCombo(true);
+  $('#combo-off').onclick = () => setCombo(false);
   $('#login-btn').onclick = doLogin;
   $('#login-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
   $('#logout-btn').onclick = doLogout;

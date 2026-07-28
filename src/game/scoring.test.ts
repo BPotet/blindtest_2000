@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeScore, rankPlayers, BASE_POINTS, MAX_SPEED_BONUS } from './scoring';
+import { computeScore, rankPlayers, streakBonus, BASE_POINTS, MAX_SPEED_BONUS } from './scoring';
 
 describe('computeScore', () => {
   it('donne 0 point pour une mauvaise réponse', () => {
@@ -34,6 +34,22 @@ describe('computeScore', () => {
     const fast = computeScore({ correct: true, elapsedMs: 2000, answerWindowMs: 20000 });
     const slow = computeScore({ correct: true, elapsedMs: 15000, answerWindowMs: 20000 });
     expect(fast).toBeGreaterThan(slow);
+  });
+});
+
+describe('streakBonus', () => {
+  it('aucun bonus pour la 1re bonne réponse', () => {
+    expect(streakBonus(0)).toBe(0);
+    expect(streakBonus(1)).toBe(0);
+  });
+  it('augmente de 100 par palier', () => {
+    expect(streakBonus(2)).toBe(100);
+    expect(streakBonus(3)).toBe(200);
+    expect(streakBonus(4)).toBe(300);
+  });
+  it('plafonne à 500', () => {
+    expect(streakBonus(6)).toBe(500);
+    expect(streakBonus(12)).toBe(500);
   });
 });
 

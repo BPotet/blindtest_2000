@@ -6,6 +6,17 @@
 export const BASE_POINTS = 1000;
 export const MAX_SPEED_BONUS = 1000;
 
+// Bonus de série (combo) : à partir de la 2e bonne réponse consécutive, +100 par
+// palier, plafonné à +500 (6 bonnes de suite).
+export const STREAK_BONUS_PER = 100;
+export const STREAK_CAP = 6;
+
+/** Bonus de combo pour une série de `streak` bonnes réponses consécutives. */
+export function streakBonus(streak: number): number {
+  if (streak <= 1) return 0;
+  return Math.min(streak - 1, STREAK_CAP - 1) * STREAK_BONUS_PER;
+}
+
 export interface ScoreInput {
   correct: boolean;
   /** Temps écoulé, en millisecondes, entre le début de la fenêtre de réponse

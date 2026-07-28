@@ -9,7 +9,7 @@ import type {
   HostRound,
   PlayerRoundResult,
 } from '../types';
-import { computeScore, rankPlayers } from './scoring';
+import { computeScore, rankPlayers, streakBonus } from './scoring';
 import { generateRoomCode, generateId } from './codes';
 
 export const MAX_PSEUDO_LENGTH = 24;
@@ -21,6 +21,8 @@ interface Player {
   connected: boolean;
   socketId: string | null;
   teamId: string | null;
+  /** Série de bonnes réponses consécutives (mode solo). */
+  streak: number;
 }
 
 interface Team {
@@ -28,6 +30,8 @@ interface Team {
   name: string;
   /** Score cumulé de l'équipe (une réponse commune par manche). */
   score: number;
+  /** Série de bonnes réponses consécutives (mode équipes). */
+  streak: number;
 }
 
 interface RecordedAnswer {
@@ -85,13 +89,20 @@ export class Room {
   private teamVotes = new Map<string, Map<string, { optionIndex: number; atMs: number }>>();
   private teamLock = new Map<string, { optionIndex: number; elapsedMs: number }>();
   readonly mode: RoomMode;
+  readonly comboEnabled: boolean;
   createdAt = Date.now();
   lastActivityAt = Date.now();
 
-  constructor(quiz: Quiz, code = generateRoomCode(), mode: RoomMode = 'solo') {
+  constructor(
+    quiz: Quiz,
+    code = generateRoomCode(),
+    mode: RoomMode = 'solo',
+    comboEnabled = true,
+  ) {
     this.quiz = quiz;
     this.code = code;
     this.mode = mode;
+    this.comboEnabled = comboEnabled;
     this.hostToken = generateId('host');
   }
 
@@ -153,7 +164,7 @@ export class Room {
       const existing = [...this.teams.values()].find(
         (t) => t.name.toLowerCase() === teamName.toLowerCase(),
       );
-      const team = existing ?? { id: generateId('t'), name: teamName, score: 0 };
+      const team = existing ?? { id: generateId('t'), name: teamName, score: 0, streak: 0 };
       if (!existing) this.teams.set(team.id, team);
       teamId = team.id;
     }
@@ -165,6 +176,7 @@ export class Room {
       connected: true,
       socketId,
       teamId,
+      streak: 0,
     };
     this.players.set(player.id, player);
     this.touch();
@@ -461,10 +473,16 @@ export class Room {
       for (const team of this.teams.values()) {
         const final = this.finalTeamAnswer(team.id, answerWindowMs);
         const correct = final ? final.optionIndex === round.correctIndex : false;
-        const points = final
-          ? computeScore({ correct, elapsedMs: final.elapsedMs, answerWindowMs })
-          : 0;
-        team.score += points;
+        const base = final ? computeScore({ correct, elapsedMs: final.elapsedMs, answerWindowMs }) : 0;
+        let comboBonus = 0;
+        if (correct) {
+          team.streak += 1;
+          comboBonus = this.comboEnabled ? streakBonus(team.streak) : 0;
+        } else {
+          team.streak = 0;
+        }
+        const awarded = base + comboBonus;
+        team.score += awarded;
         if (final) {
           answeredCount += 1;
           if (final.optionIndex >= 0 && final.optionIndex < distribution.length) {
@@ -476,24 +494,36 @@ export class Room {
           if (p.teamId !== team.id) continue;
           perPlayer.set(p.id, {
             correct,
-            pointsAwarded: points,
+            pointsAwarded: awarded,
             correctIndex: round.correctIndex,
             answerLabel: round.answerLabel,
             totalScore: team.score,
             answeredBy: null,
+            streak: team.streak,
+            comboBonus,
           });
         }
       }
     } else {
       for (const player of this.players.values()) {
         const { correct, points } = tally(this.answers.get(player.id));
-        player.score += points;
+        let comboBonus = 0;
+        if (correct) {
+          player.streak += 1;
+          comboBonus = this.comboEnabled ? streakBonus(player.streak) : 0;
+        } else {
+          player.streak = 0;
+        }
+        const awarded = points + comboBonus;
+        player.score += awarded;
         perPlayer.set(player.id, {
           correct,
-          pointsAwarded: points,
+          pointsAwarded: awarded,
           correctIndex: round.correctIndex,
           answerLabel: round.answerLabel,
           totalScore: player.score,
+          streak: player.streak,
+          comboBonus,
         });
       }
     }
@@ -554,12 +584,12 @@ export class Room {
 export class RoomManager {
   private readonly rooms = new Map<string, Room>();
 
-  create(quiz: Quiz, mode: RoomMode = 'solo'): Room {
+  create(quiz: Quiz, mode: RoomMode = 'solo', comboEnabled = true): Room {
     let code = generateRoomCode();
     while (this.rooms.has(code)) {
       code = generateRoomCode();
     }
-    const room = new Room(quiz, code, mode);
+    const room = new Room(quiz, code, mode, comboEnabled);
     this.rooms.set(code, room);
     return room;
   }

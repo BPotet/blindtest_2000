@@ -6,7 +6,7 @@
   const state = {
     code: null, playerId: null, pseudo: null, answered: false, lastChoice: null, timer: null,
     awaiting: false, mode: 'solo', teamId: null, teamName: null,
-    options: [], myVote: null, teamLocked: false, teamAnswerIndex: null,
+    options: [], myVote: null, teamLocked: false, teamAnswerIndex: null, streak: 0,
   };
 
   // Identifiant utilisé pour surligner « moi » dans le classement : l'équipe en
@@ -117,6 +117,13 @@
     state.teamAnswerIndex = null;
     show('screen-question');
     $('#q-progress').textContent = `Manche ${pr.roundIndex + 1} / ${pr.totalRounds}`;
+    const streakBadge = $('#q-streak');
+    if (state.streak >= 2) {
+      streakBadge.style.display = '';
+      streakBadge.textContent = `🔥 ×${state.streak}`;
+    } else {
+      streakBadge.style.display = 'none';
+    }
     $('#q-text').textContent = pr.question;
     $('#q-status').textContent = state.mode === 'teams' ? '🗳️ Votez pour votre équipe !' : 'À toi de jouer !';
     const lockBtn = $('#team-lock-btn');
@@ -256,6 +263,16 @@
     }
     if (state.mode === 'teams' && mine && mine.answeredBy && mine.answeredBy !== state.pseudo) {
       $('#feedback-title').textContent += ` · répondu par ${mine.answeredBy}`;
+    }
+    // Série / combo.
+    state.streak = mine ? mine.streak || 0 : 0;
+    const streakEl = $('#feedback-streak');
+    if (mine && mine.correct && mine.comboBonus > 0) {
+      streakEl.textContent = `🔥 Série ×${mine.streak} · +${mine.comboBonus} de combo !`;
+    } else if (mine && mine.correct && mine.streak >= 2) {
+      streakEl.textContent = `🔥 Série ×${mine.streak}`;
+    } else {
+      streakEl.textContent = '';
     }
     $('#feedback-answer').textContent = `La réponse : ${p.answerLabel}`;
     window.App.renderDistribution($('#feedback-distribution'), {
