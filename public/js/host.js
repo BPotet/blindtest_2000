@@ -531,18 +531,13 @@
     if (!title) { toast('Donne un titre au quiz.'); return; }
     const rounds = [];
     for (const block of $$('.builder-round')) {
-      // On parcourt les propositions dans l'ordre en ne gardant que les non vides,
-      // et on recale l'index de la bonne réponse sur cette liste filtrée
-      // (sinon un slot vide décale tout et rend le quiz invalide).
-      const options = [];
-      let correctIndex = 0;
-      $$('.option-input-row', block).forEach((row) => {
-        const val = $('.r-opt', row).value.trim();
-        if (!val) return;
+      // Mapping pur (testé dans src/quiz-form.test.ts) : ne garde que les
+      // propositions non vides et recale l'index de la bonne réponse dessus.
+      const rows = $$('.option-input-row', block).map((row) => {
         const radio = $('input[type="radio"]', row);
-        if (radio && radio.checked) correctIndex = options.length;
-        options.push(val);
+        return { value: $('.r-opt', row).value, checked: !!(radio && radio.checked) };
       });
+      const { options, correctIndex } = BT_quizForm.mapOptions(rows);
       rounds.push({
         youtube: $('.r-yt', block).value.trim(),
         startSeconds: Number($('.r-start', block).value) || 0,
@@ -560,7 +555,7 @@
       const r = rounds[i];
       const num = i + 1;
       if (!r.youtube) { toast(`Manche ${num} : colle un lien YouTube (ou un ID).`); return; }
-      if (!parseYtId(r.youtube)) { toast(`Manche ${num} : lien YouTube invalide.`); return; }
+      if (!BT_quizForm.parseYtId(r.youtube)) { toast(`Manche ${num} : lien YouTube invalide.`); return; }
       if (r.options.length < 2) { toast(`Manche ${num} : ajoute au moins 2 propositions.`); return; }
       if (!r.question) { toast(`Manche ${num} : écris la question posée.`); return; }
     }
@@ -959,26 +954,6 @@
   }
 
   // --- Aperçu d'un extrait (pour se rappeler le morceau) -----------------
-  function parseYtId(input) {
-    const v = String(input || '').trim();
-    if (!v) return null;
-    if (/^[A-Za-z0-9_-]{11}$/.test(v)) return v;
-    try {
-      const url = new URL(v.includes('://') ? v : `https://${v}`);
-      const host = url.hostname.replace(/^www\./, '');
-      if (host === 'youtu.be') {
-        const id = url.pathname.split('/').filter(Boolean)[0];
-        return /^[A-Za-z0-9_-]{11}$/.test(id || '') ? id : null;
-      }
-      const vp = url.searchParams.get('v');
-      if (vp && /^[A-Za-z0-9_-]{11}$/.test(vp)) return vp;
-      const seg = url.pathname.split('/').filter(Boolean);
-      const m = seg.findIndex((s) => s === 'embed' || s === 'shorts' || s === 'v');
-      if (m >= 0 && /^[A-Za-z0-9_-]{11}$/.test(seg[m + 1] || '')) return seg[m + 1];
-    } catch (_) { /* pas une URL */ }
-    return null;
-  }
-
   function openPreview(id, startSeconds) {
     const start = Math.max(0, Math.round(Number(startSeconds) || 0));
     $('#preview-player').innerHTML =
@@ -993,7 +968,7 @@
   }
 
   function previewRound(block) {
-    const id = parseYtId($('.r-yt', block).value);
+    const id = BT_quizForm.parseYtId($('.r-yt', block).value);
     if (!id) { toast('Lien YouTube invalide — colle une URL ou un ID valide.'); return; }
     openPreview(id, $('.r-start', block).value);
   }
