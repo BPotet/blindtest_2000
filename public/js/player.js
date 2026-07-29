@@ -472,7 +472,7 @@
     renderLeaderboard($('#feedback-leaderboard'), p.leaderboard, lbId());
   });
 
-  socket.on(BT_EVENTS.GAME_ENDED, (p) => showFinal(p.leaderboard));
+  socket.on(BT_EVENTS.GAME_ENDED, (p) => showFinal(p.leaderboard, p.awards));
 
   socket.on(BT_EVENTS.PLAYER_ERROR, (p) => {
     if (p.fatal) {
@@ -492,7 +492,7 @@
     if (section && section.style.display === 'block') renderTeamPicker(p.teams || []);
   });
 
-  function showFinal(leaderboard) {
+  function showFinal(leaderboard, awards) {
     clearAutoNext();
     stopAudio();
     show('screen-final');
@@ -505,6 +505,7 @@
     const rest = leaderboard.slice(3);
     if (rest.length) renderLeaderboard($('#final-board'), rest, lbId());
     else $('#final-board').innerHTML = '';
+    window.App.renderAwards($('#player-awards'), awards);
     window.App.confetti();
     window.App.Sound.fanfare();
     localStorage.removeItem('bt_player');

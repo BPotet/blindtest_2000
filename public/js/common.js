@@ -191,10 +191,37 @@
     container.appendChild(podium);
   }
 
+  // Palmarès : cartes de titres décernés en fin de partie (⚡ Éclair, 🔥 série…).
+  function renderAwards(container, awards) {
+    if (!container) return;
+    container.innerHTML = '';
+    if (!awards || !awards.length) return;
+    const title = document.createElement('h2');
+    title.className = 'awards-title';
+    title.textContent = '🏅 Palmarès';
+    container.appendChild(title);
+    const grid = document.createElement('div');
+    grid.className = 'awards-grid';
+    awards.forEach((a, i) => {
+      const card = document.createElement('div');
+      card.className = 'award-card';
+      card.style.animationDelay = `${i * 0.15}s`;
+      card.innerHTML =
+        `<div class="award-emoji">${escapeHtml(a.emoji || '🏅')}</div>` +
+        `<div class="award-body">` +
+        `<div class="award-title">${escapeHtml(a.title || '')}</div>` +
+        `<div class="award-winner">${escapeHtml(a.winner || '')}</div>` +
+        `<div class="award-detail">${escapeHtml(a.detail || '')}</div>` +
+        `</div>`;
+      grid.appendChild(card);
+    });
+    container.appendChild(grid);
+  }
+
   initMute();
 
   window.App = {
     $, $$, show, escapeHtml, OPTION_SHAPES, toast, renderLeaderboard, renderDistribution,
-    Sound, playCountdown, confetti, renderPodium,
+    Sound, playCountdown, confetti, renderPodium, renderAwards,
   };
 })();

@@ -729,6 +729,9 @@
         leaderboard: p.leaderboard,
         youtubeId: p.youtubeId,
         fastest: p.fastest,
+        slowest: p.slowest,
+        atBuzzer: p.atBuzzer,
+        soloCorrect: p.soloCorrect,
         mode: state.roomMode,
       });
     }, 1200);
@@ -785,9 +788,10 @@
     const rest = p.leaderboard.slice(3);
     if (rest.length) renderLeaderboard($('#final-leaderboard'), rest, null);
     else $('#final-leaderboard').innerHTML = '';
+    window.App.renderAwards($('#final-awards'), p.awards);
     window.App.confetti();
     window.App.Sound.fanfare();
-    presentScene('ended', { leaderboard: p.leaderboard });
+    presentScene('ended', { leaderboard: p.leaderboard, awards: p.awards });
     localStorage.removeItem('bt_host');
   });
 

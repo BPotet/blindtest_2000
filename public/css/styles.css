@@ -351,10 +351,27 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
 
 /* « Main la plus rapide » de la manche (écran public). */
 .fastest-badge {
-  margin-top: 14px; display: inline-block; padding: 8px 18px; border-radius: 999px;
+  display: inline-block; padding: 8px 18px; border-radius: 999px;
   background: linear-gradient(90deg, #f59e0b, #ef4444); color: #fff; font-weight: 800; font-size: 18px;
   animation: reveal-pop 0.5s 0.2s both;
 }
+/* Conteneur des badges de manche (rapide / lente / au buzzer / seul contre tous). */
+.result-badges { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 14px; }
+
+/* Palmarès de fin de partie (titres décernés). */
+.awards-title { text-align: center; margin: 4px 0 14px; }
+.awards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.award-card {
+  display: flex; align-items: center; gap: 12px; text-align: left; padding: 14px 16px;
+  background: var(--surface-2); border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.06);
+  animation: award-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.award-emoji { font-size: 34px; line-height: 1; flex-shrink: 0; }
+.award-body { min-width: 0; }
+.award-title { font-weight: 800; }
+.award-winner { font-weight: 900; color: var(--accent-2); font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.award-detail { color: var(--text-muted); font-size: 13px; }
+@keyframes award-in { from { opacity: 0; transform: translateY(16px) scale(0.96); } to { opacity: 1; transform: none; } }
 
 /* Combo en feu (joueur) : la flamme vacille et grossit avec la série. */
 .combo-flame {
@@ -407,7 +424,7 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
 @media (prefers-reduced-motion: reduce) {
   .eq span { animation: none; height: 52px; }
   /* Accessibilité : on coupe les animations décoratives, on garde l'affichage. */
-  .podium-col, .podium-col.rank-1 .podium-medal, .reveal-thumb, .fastest-badge, .combo-flame {
+  .podium-col, .podium-col.rank-1 .podium-medal, .reveal-thumb, .fastest-badge, .combo-flame, .award-card {
     animation: none !important;
   }
 }

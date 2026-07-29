@@ -2,7 +2,7 @@
    il est piloté par la fenêtre de contrôle de l'hôte via BroadcastChannel
    (même origine, même navigateur). Il n'affiche jamais la vidéo. */
 (function () {
-  const { $, show, escapeHtml, OPTION_SHAPES, renderLeaderboard, renderDistribution, renderPodium } = window.App;
+  const { $, show, escapeHtml, OPTION_SHAPES, renderLeaderboard, renderDistribution, renderPodium, renderAwards } = window.App;
 
   if (!('BroadcastChannel' in window)) {
     $('#present-idle').innerHTML =
@@ -145,13 +145,24 @@
         thumb.hidden = true;
         thumb.removeAttribute('src');
       }
-      // « Main la plus rapide » de la manche.
+      // Badges de manche : main la plus rapide + (lente/au buzzer) + seul contre tous.
       const fast = $('#p-result-fastest');
-      if (!m.skipped && m.fastest && m.fastest.name) {
-        fast.textContent = `⚡ Main la plus rapide : ${m.fastest.name}`;
-        fast.hidden = false;
-      } else {
+      if (m.skipped) {
         fast.hidden = true;
+      } else {
+        const badges = [];
+        if (m.fastest && m.fastest.name) badges.push(`⚡ Main la plus rapide : ${m.fastest.name}`);
+        if (m.soloCorrect) {
+          badges.push(`🧠 Seul contre tous : ${m.soloCorrect}`);
+        } else if (m.slowest && m.slowest.name && (!m.fastest || m.slowest.name !== m.fastest.name)) {
+          badges.push(m.atBuzzer ? `🍀 Au buzzer : ${m.slowest.name}` : `🐢 Main la plus lente : ${m.slowest.name}`);
+        }
+        if (badges.length) {
+          fast.innerHTML = badges.map((b) => `<span class="fastest-badge">${escapeHtml(b)}</span>`).join('');
+          fast.hidden = false;
+        } else {
+          fast.hidden = true;
+        }
       }
       if (m.skipped) {
         $('#p-result-dist-card').style.display = 'none';
@@ -177,6 +188,10 @@
       if (rest.length) renderLeaderboard($('#p-final-leaderboard'), rest, null);
       else $('#p-final-leaderboard').innerHTML = '';
       setTimeout(() => window.App.confetti(), 1400);
+      // Le palmarès se dévoile après l'animation du podium.
+      const awardsBox = $('#p-final-awards');
+      awardsBox.innerHTML = '';
+      setTimeout(() => renderAwards(awardsBox, m.awards), 2000);
     },
   };
 
