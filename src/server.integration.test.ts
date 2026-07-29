@@ -661,3 +661,41 @@ describe('Import YouTube — actif (fetcher injecté)', () => {
     expect(res.status).toBe(422);
   });
 });
+
+describe('Anti-abus — rate limit sur l\'authentification (HTTP)', () => {
+  // Serveur dédié : le limiteur est par instance, on ne veut pas polluer
+  // (ni être pollué par) le compteur des autres tests.
+  let rlServer: BuiltServer;
+  let rlPort: number;
+
+  beforeAll(async () => {
+    rlServer = buildServer({ authConfig });
+    await rlServer.quizRepo.upsertUser('admin', hashPassword('admin'));
+    await new Promise<void>((resolve) => rlServer.httpServer.listen(0, resolve));
+    rlPort = (rlServer.httpServer.address() as AddressInfo).port;
+  });
+
+  afterAll(async () => {
+    rlServer.io.close();
+    await new Promise<void>((resolve) => rlServer.httpServer.close(() => resolve()));
+  });
+
+  it('renvoie 429 après trop de tentatives de connexion', async () => {
+    const attempt = () =>
+      fetch(`http://localhost:${rlPort}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'admin', password: 'faux' }),
+      });
+
+    // 10 tentatives autorisées (mauvais mot de passe -> 401), puis blocage.
+    const statuses: number[] = [];
+    for (let i = 0; i < 12; i += 1) {
+      statuses.push((await attempt()).status);
+    }
+
+    expect(statuses.slice(0, 10).every((s) => s === 401)).toBe(true);
+    expect(statuses[10]).toBe(429);
+    expect(statuses[11]).toBe(429);
+  });
+});

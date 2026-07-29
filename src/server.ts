@@ -107,6 +107,13 @@ export function buildServer(
     next();
   };
 
+  // Anti-abus : brute-force de connexion et spam d'inscriptions (par IP).
+  const loginLimiter = createRateLimiter(10, 60_000);
+  const registerLimiter = createRateLimiter(10, 60_000);
+  const tooMany = (res: import('express').Response): void => {
+    res.status(429).json({ error: 'too_many_requests', message: 'Trop de tentatives, réessaie dans une minute.' });
+  };
+
   // ---- Routes HTTP ------------------------------------------------------
 
   app.get('/api/health', (_req, res) => {
@@ -118,6 +125,7 @@ export function buildServer(
   // Inscription libre : n'importe qui peut créer un compte hôte et obtient
   // aussitôt une session. Chaque hôte ne voit que ses propres playlists (+ démos).
   app.post('/api/register', async (req, res) => {
+    if (!registerLimiter(req)) { tooMany(res); return; }
     const parsed = credentialsSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'invalid_input', message: parsed.error.issues[0]?.message });
@@ -139,6 +147,7 @@ export function buildServer(
   });
 
   app.post('/api/login', async (req, res) => {
+    if (!loginLimiter(req)) { tooMany(res); return; }
     const username = typeof req.body?.username === 'string' ? req.body.username : '';
     const password = typeof req.body?.password === 'string' ? req.body.password : '';
     const user = await quizRepo.getUserByUsername(username);
@@ -472,9 +481,22 @@ function wireSockets(
   io.on('connection', (socket: Socket) => {
     const data = socket.data as SocketData;
 
+    // Enrobe un handler async : un rejet est loggé et signalé au socket au lieu
+    // de devenir un « unhandled rejection ».
+    const onSafe = (event: string, handler: (payload: unknown) => Promise<void>): void => {
+      socket.on(event, (payload: unknown) => {
+        Promise.resolve(handler(payload)).catch((err) => {
+          console.error(`Handler Socket.IO "${event}" a échoué :`, (err as Error)?.message ?? err);
+          socket.emit(event.startsWith('player:') ? 'player:error' : 'host:error', {
+            message: 'Erreur serveur, réessaie.',
+          });
+        });
+      });
+    };
+
     // ---- Hôte ----------------------------------------------------------
 
-    socket.on('host:createRoom', async (payload: unknown) => {
+    onSafe('host:createRoom', async (payload: unknown) => {
       const uid = socketUserId(socket, authConfig);
       if (!uid) {
         socket.emit('host:error', { message: 'Connecte-toi pour lancer une partie.', fatal: true });
@@ -821,6 +843,25 @@ function wireSockets(
       }
     });
   });
+}
+
+type RateLimiter = (req: Request) => boolean;
+
+/** Limiteur simple en mémoire (par IP, fenêtre glissante). Renvoie false si dépassé. */
+function createRateLimiter(maxHits: number, windowMs: number): RateLimiter {
+  const hits = new Map<string, number[]>();
+  return (req) => {
+    const fwd = req.headers['x-forwarded-for'];
+    const ip = (Array.isArray(fwd) ? fwd[0] : fwd ?? req.socket.remoteAddress ?? 'unknown')
+      .split(',')[0]
+      .trim();
+    const now = Date.now();
+    const recent = (hits.get(ip) ?? []).filter((t) => now - t < windowMs);
+    recent.push(now);
+    hits.set(ip, recent);
+    if (hits.size > 10_000) hits.clear(); // garde-fou mémoire
+    return recent.length <= maxHits;
+  };
 }
 
 function socketUserId(socket: Socket, authConfig: AuthConfig): string | null {
