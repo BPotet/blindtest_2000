@@ -42,6 +42,28 @@ interface RecordedAnswer {
   byPlayerId: string;
 }
 
+/** Stats cumulées d'une unité (joueur/équipe) sur toute la partie, pour le palmarès. */
+interface UnitStats {
+  name: string;
+  fastestWins: number; // nb de manches où l'unité a été la plus rapide (bonne réponse)
+  slowestWins: number; // nb de manches où elle a été la plus lente (bonne réponse)
+  buzzerWins: number; // nb de bonnes réponses données dans la dernière seconde
+  maxStreak: number; // plus longue série de bonnes réponses atteinte
+  correctRounds: number; // nb de manches trouvées
+  answeredRounds: number; // nb de manches où elle a répondu
+  firstRank: number | null; // rang après la 1re manche notée
+  lastRank: number; // rang courant (mis à jour à chaque manche)
+}
+
+/** Un titre décerné en fin de partie (palmarès). */
+export interface Award {
+  key: string;
+  emoji: string;
+  title: string;
+  winner: string;
+  detail: string;
+}
+
 /**
  * Détermine l'option gagnante d'un vote d'équipe : plus grand nombre de voix,
  * départage par le vote le plus précoce (la première option vers laquelle
@@ -91,6 +113,8 @@ export class Room {
   // Mode équipes : votes par membre + réponse verrouillée par équipe.
   private teamVotes = new Map<string, Map<string, { optionIndex: number; atMs: number }>>();
   private teamLock = new Map<string, { optionIndex: number; elapsedMs: number }>();
+  /** Stats cumulées de la partie (par nom d'unité), pour le palmarès de fin. */
+  private gameStats = new Map<string, UnitStats>();
   readonly mode: RoomMode;
   readonly comboEnabled: boolean;
   /** Son joué sur le téléphone des joueurs (opt-in de l'hôte). */
@@ -319,6 +343,9 @@ export class Room {
     const round = this.quiz.rounds[this.currentRoundIndex];
     if (!round) return null;
 
+    // Nouvelle partie : on repart d'un palmarès vierge.
+    if (this.currentRoundIndex === 0) this.gameStats.clear();
+
     this.state = 'playing';
     this.clipStarted = false;
     this.paused = false;
@@ -499,6 +526,12 @@ export class Room {
     totalPlayers: number;
     /** Unité (joueur/équipe) ayant répondu juste le plus vite — la « main la plus rapide ». */
     fastest: { name: string; elapsedMs: number } | null;
+    /** Unité ayant répondu juste le plus lentement — la « main la plus lente ». */
+    slowest: { name: string; elapsedMs: number } | null;
+    /** La main la plus lente a répondu dans la dernière seconde (« au buzzer »). */
+    atBuzzer: boolean;
+    /** Nom de l'unité si elle est la SEULE à avoir trouvé (« seul contre tous »). */
+    soloCorrect: string | null;
     perPlayer: Map<string, PlayerRoundResult>;
   } | null {
     if (this.state !== 'playing') return null;
@@ -511,11 +544,17 @@ export class Room {
     let answeredCount = 0;
     let correctCount = 0;
 
-    // « Main la plus rapide » : l'unité (joueur ou équipe) qui a répondu JUSTE
-    // avec le plus petit temps de réponse mesuré côté serveur.
-    let fastest: { name: string; elapsedMs: number } | null = null;
-    const considerFastest = (name: string, elapsedMs: number): void => {
-      if (!fastest || elapsedMs < fastest.elapsedMs) fastest = { name, elapsedMs };
+    // Toutes les BONNES réponses de la manche (nom + temps serveur) : on en déduit
+    // ensuite la main la plus rapide / la plus lente et « seul contre tous ».
+    const correctHands: Array<{ name: string; elapsedMs: number }> = [];
+    // Récupère/crée la fiche de stats cumulées d'une unité (par nom, unique dans la salle).
+    const stat = (name: string): UnitStats => {
+      let s = this.gameStats.get(name);
+      if (!s) {
+        s = { name, fastestWins: 0, slowestWins: 0, buzzerWins: 0, maxStreak: 0, correctRounds: 0, answeredRounds: 0, firstRank: null, lastRank: 0 };
+        this.gameStats.set(name, s);
+      }
+      return s;
     };
 
     // Comptabilise une réponse d'unité (équipe ou joueur) dans les stats de manche.
@@ -544,10 +583,14 @@ export class Room {
         if (correct) {
           team.streak += 1;
           comboBonus = this.comboEnabled ? streakBonus(team.streak) : 0;
-          if (final) considerFastest(team.name, final.elapsedMs);
+          if (final) correctHands.push({ name: team.name, elapsedMs: final.elapsedMs });
         } else {
           team.streak = 0;
         }
+        const ts = stat(team.name);
+        if (final) ts.answeredRounds += 1;
+        if (correct) ts.correctRounds += 1;
+        ts.maxStreak = Math.max(ts.maxStreak, team.streak);
         const awarded = base + comboBonus;
         team.score += awarded;
         if (final) {
@@ -579,10 +622,14 @@ export class Room {
         if (correct) {
           player.streak += 1;
           comboBonus = this.comboEnabled ? streakBonus(player.streak) : 0;
-          if (ans) considerFastest(player.pseudo, ans.elapsedMs);
+          if (ans) correctHands.push({ name: player.pseudo, elapsedMs: ans.elapsedMs });
         } else {
           player.streak = 0;
         }
+        const ps = stat(player.pseudo);
+        if (ans) ps.answeredRounds += 1;
+        if (correct) ps.correctRounds += 1;
+        ps.maxStreak = Math.max(ps.maxStreak, player.streak);
         const awarded = points + comboBonus;
         player.score += awarded;
         perPlayer.set(player.id, {
@@ -597,6 +644,31 @@ export class Room {
       }
     }
 
+    // Mains la plus rapide / la plus lente parmi les bonnes réponses.
+    let fastest: { name: string; elapsedMs: number } | null = null;
+    let slowest: { name: string; elapsedMs: number } | null = null;
+    for (const c of correctHands) {
+      if (!fastest || c.elapsedMs < fastest.elapsedMs) fastest = c;
+      if (!slowest || c.elapsedMs > slowest.elapsedMs) slowest = c;
+    }
+    // « Seul contre tous » : une seule unité a trouvé.
+    const soloCorrect = correctHands.length === 1 ? correctHands[0].name : null;
+    // « Au buzzer » : la main la plus lente a répondu dans la dernière seconde.
+    const atBuzzer = slowest !== null && slowest.elapsedMs >= answerWindowMs - 1000;
+
+    // Cumule les victoires de manche pour le palmarès de fin.
+    if (fastest) stat(fastest.name).fastestWins += 1;
+    if (slowest) {
+      stat(slowest.name).slowestWins += 1;
+      if (atBuzzer) stat(slowest.name).buzzerWins += 1;
+    }
+    // Mémorise les rangs (1re et courante) pour la « remontada ».
+    for (const entry of this.leaderboard()) {
+      const s = stat(entry.pseudo);
+      if (s.firstRank === null) s.firstRank = entry.rank;
+      s.lastRank = entry.rank;
+    }
+
     this.state = 'roundResult';
     this.touch();
     return {
@@ -609,8 +681,48 @@ export class Room {
       correctCount,
       totalPlayers: this.respondentCount(),
       fastest,
+      slowest,
+      atBuzzer,
+      soloCorrect,
       perPlayer,
     };
+  }
+
+  /**
+   * Palmarès de fin de partie : décerne des titres à partir des stats cumulées.
+   * Un titre n'est décerné que s'il a un gagnant pertinent (sinon omis).
+   */
+  computeAwards(): Award[] {
+    const stats = [...this.gameStats.values()];
+    const awards: Award[] = [];
+    // Sélectionne l'unité qui maximise `score`, à condition de dépasser `min`.
+    const best = (score: (s: UnitStats) => number, min = 1): UnitStats | null => {
+      let winner: UnitStats | null = null;
+      let bestScore = -Infinity;
+      for (const s of stats) {
+        const v = score(s);
+        if (v > bestScore) { bestScore = v; winner = s; }
+      }
+      return winner && bestScore >= min ? winner : null;
+    };
+
+    const eclair = best((s) => s.fastestWins);
+    if (eclair) awards.push({ key: 'eclair', emoji: '⚡', title: "L'Éclair", winner: eclair.name, detail: `${eclair.fastestWins} main(s) la plus rapide` });
+
+    const tranquille = best((s) => s.slowestWins);
+    if (tranquille) awards.push({ key: 'tranquille', emoji: '🐢', title: 'Le Tranquille', winner: tranquille.name, detail: `${tranquille.slowestWins} réponse(s) au ralenti` });
+
+    const serie = best((s) => s.maxStreak, 2);
+    if (serie) awards.push({ key: 'serie', emoji: '🔥', title: 'Meilleure série', winner: serie.name, detail: `série de ${serie.maxStreak}` });
+
+    const sniper = best((s) => s.correctRounds);
+    if (sniper) awards.push({ key: 'sniper', emoji: '🎯', title: 'Sniper', winner: sniper.name, detail: `${sniper.correctRounds} bonne(s) réponse(s)` });
+
+    const remontada = best((s) => (s.firstRank !== null ? s.firstRank - s.lastRank : 0));
+    if (remontada && remontada.firstRank !== null) {
+      awards.push({ key: 'remontada', emoji: '🎢', title: 'Remontada', winner: remontada.name, detail: `+${remontada.firstRank - remontada.lastRank} place(s)` });
+    }
+    return awards;
   }
 
   endGame(): void {
@@ -635,6 +747,7 @@ export class Room {
     this.teamLock = new Map();
     for (const p of this.players.values()) { p.score = 0; p.streak = 0; }
     for (const t of this.teams.values()) { t.score = 0; t.streak = 0; }
+    this.gameStats.clear();
     this.touch();
     return true;
   }

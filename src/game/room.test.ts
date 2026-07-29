@@ -122,6 +122,69 @@ describe('Room — déroulé et scoring', () => {
     expect(room.endRound()!.fastest).toBeNull();
   });
 
+  it('badges de manche : main la plus lente, au buzzer, seul contre tous', () => {
+    const room = new Room(makeQuiz(), 'ABCDE'); // durée 20 s -> fenêtre 20000 ms
+    const alice = room.addPlayer('Alice', 's1');
+    const carol = room.addPlayer('Carol', 's2');
+    const bob = room.addPlayer('Bob', 's3');
+    if (!('player' in alice) || !('player' in carol) || !('player' in bob)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(1000);
+    room.submitAnswer(alice.player.id, 1, 1500); // bonne, +500ms -> la plus rapide
+    room.submitAnswer(carol.player.id, 1, 20500); // bonne, +19500ms -> la plus lente, au buzzer
+    room.submitAnswer(bob.player.id, 0, 3000); // faux
+
+    const r = room.endRound()!;
+    expect(r.fastest).toEqual({ name: 'Alice', elapsedMs: 500 });
+    expect(r.slowest).toEqual({ name: 'Carol', elapsedMs: 19500 });
+    expect(r.atBuzzer).toBe(true);
+    expect(r.soloCorrect).toBeNull(); // deux ont trouvé
+  });
+
+  it('« seul contre tous » quand une seule unité trouve', () => {
+    const room = new Room(makeQuiz(), 'ABCDE');
+    const alice = room.addPlayer('Alice', 's1');
+    const bob = room.addPlayer('Bob', 's2');
+    if (!('player' in alice) || !('player' in bob)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(1000);
+    room.submitAnswer(alice.player.id, 1, 2000); // seule bonne réponse
+    room.submitAnswer(bob.player.id, 0, 2500); // faux
+    expect(room.endRound()!.soloCorrect).toBe('Alice');
+  });
+
+  it('palmarès de fin : Éclair, Tranquille, Meilleure série, Sniper, Remontada', () => {
+    const room = new Room(makeQuiz(), 'ABCDE'); // 2 manches (correctIndex 1 puis 0)
+    const alice = room.addPlayer('Alice', 's1');
+    const bob = room.addPlayer('Bob', 's2');
+    if (!('player' in alice) || !('player' in bob)) throw new Error();
+
+    // Manche 1 : Bob trouve (rapide), Alice se trompe -> Bob mène.
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(bob.player.id, 1, 800);
+    room.submitAnswer(alice.player.id, 0, 1000);
+    room.endRound();
+
+    // Manche 2 : Alice trouve, Bob se trompe -> Alice double Bob (remontada).
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(alice.player.id, 0, 500); // bonne (index 0)
+    room.submitAnswer(bob.player.id, 1, 900); // faux
+    room.endRound();
+
+    const awards = room.computeAwards();
+    const by = (k: string) => awards.find((a) => a.key === k);
+    // Chacun a été « le plus rapide » une fois : l'Éclair revient au premier trouvé (Bob).
+    expect(by('eclair')).toBeTruthy();
+    // Meilleure série : Alice n'a pas enchaîné (1 seule bonne), Bob non plus (1) -> min 2 non atteint.
+    expect(by('serie')).toBeUndefined();
+    // Sniper : une bonne réponse chacun -> un gagnant est désigné (départage stable).
+    expect(by('sniper')).toBeTruthy();
+    // Remontada : Alice passe de la 2e à la 1re place.
+    expect(by('remontada')).toMatchObject({ winner: 'Alice' });
+  });
+
   it('calcule la répartition des réponses en fin de manche', () => {
     const room = new Room(makeQuiz(), 'ABCDE');
     const a = room.addPlayer('A', 's1');

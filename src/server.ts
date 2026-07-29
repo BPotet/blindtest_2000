@@ -443,6 +443,9 @@ function emitRoundResult(io: IOServer, room: Room): boolean {
     correctCount: result.correctCount,
     totalPlayers: result.totalPlayers,
     fastest: result.fastest,
+    slowest: result.slowest,
+    atBuzzer: result.atBuzzer,
+    soloCorrect: result.soloCorrect,
     results,
     leaderboard: room.leaderboard(),
     isLastRound: room.isLastRound(),
@@ -626,8 +629,9 @@ function wireSockets(
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
       clearRoundTimer(room.code);
+      const awards = room.computeAwards();
       room.endGame();
-      io.to(room.code).emit(EVENTS.GAME_ENDED, { leaderboard: room.leaderboard() });
+      io.to(room.code).emit(EVENTS.GAME_ENDED, { leaderboard: room.leaderboard(), awards });
     });
 
     // Annule la partie en cours et renvoie tout le monde au lobby (scores remis à zéro).
