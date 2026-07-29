@@ -297,6 +297,30 @@ describe('Mode auto — relais du décompte (Socket.IO)', () => {
     const bobJoined = await once<any>(bob, 'player:joined');
     expect(bobJoined.playerId).toBeTruthy();
   });
+
+  it('backstop : la manche se clôt côté serveur même sans host:endRound', async () => {
+    // Quiz à durée très courte (créé via le repo, sans passer par la validation
+    // HTTP) pour que le minuteur serveur se déclenche vite.
+    const owner = await server.quizRepo.getUserByUsername('admin');
+    const quiz = await server.quizRepo.create(owner!.id, 'Backstop', [
+      { youtubeId: 'aaaaaaaaaaa', startSeconds: 0, durationSeconds: 1, question: 'Q ?', options: ['A', 'B'], correctIndex: 0, answerLabel: 'A' },
+    ]);
+    const host = connectHost();
+    await once(host, 'connect');
+    host.emit('host:createRoom', { quizId: quiz.id });
+    const created = await once<any>(host, 'host:roomCreated');
+    const alice = connect();
+    alice.emit('player:join', { code: created.code, pseudo: 'Alice' });
+    await once<any>(alice, 'player:joined');
+
+    host.emit('host:startRound');
+    await once<any>(host, 'host:roundStarted');
+    const resultP = once<any>(alice, 'round:result', 8000);
+    host.emit('host:clipStarted');
+    // On NE clôt PAS manuellement : le minuteur serveur (durée + marge) s'en charge.
+    const result = await resultP;
+    expect(result.answerLabel).toBe('A');
+  }, 12000);
 });
 
 describe('Flux de partie de bout en bout (Socket.IO)', () => {

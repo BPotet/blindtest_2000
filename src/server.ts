@@ -393,12 +393,82 @@ function toPublicRound(room: Room): PublicRound | null {
   return pr;
 }
 
+/**
+ * Clôt la manche en cours et diffuse le résultat. Point d'entrée unique appelé
+ * par la révélation manuelle de l'hôte ET par le minuteur serveur (backstop).
+ * Idempotent : renvoie false si aucune manche n'était en cours.
+ */
+function emitRoundResult(io: IOServer, room: Room): boolean {
+  const result = room.endRound();
+  if (!result) return false;
+  const results: Record<
+    string,
+    {
+      correct: boolean;
+      pointsAwarded: number;
+      totalScore: number;
+      answeredBy: string | null;
+      streak: number;
+      comboBonus: number;
+    }
+  > = {};
+  for (const [playerId, r] of result.perPlayer) {
+    results[playerId] = {
+      correct: r.correct,
+      pointsAwarded: r.pointsAwarded,
+      totalScore: r.totalScore,
+      answeredBy: r.answeredBy ?? null,
+      streak: r.streak ?? 0,
+      comboBonus: r.comboBonus ?? 0,
+    };
+  }
+  io.to(room.code).emit('round:result', {
+    correctIndex: result.correctIndex,
+    answerLabel: result.answerLabel,
+    options: result.options,
+    distribution: result.distribution,
+    answeredCount: result.answeredCount,
+    correctCount: result.correctCount,
+    totalPlayers: result.totalPlayers,
+    results,
+    leaderboard: room.leaderboard(),
+    isLastRound: room.isLastRound(),
+  });
+  return true;
+}
+
+// Marge de sécurité : le minuteur serveur ne clôt la manche que ~2 s après la fin
+// théorique, laissant l'hôte connecté piloter la révélation (UX/animations). Le
+// backstop ne prend le relais que si l'hôte a disparu.
+const ROUND_END_GRACE_MS = 2000;
+
 function wireSockets(
   io: IOServer,
   quizRepo: QuizRepository,
   roomManager: RoomManager,
   authConfig: AuthConfig,
 ): void {
+  // Minuteur serveur-autoritaire par salle : garantit qu'une manche se termine
+  // même si le navigateur de l'hôte se ferme/gèle en plein milieu.
+  const roundTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const clearRoundTimer = (code: string): void => {
+    const t = roundTimers.get(code);
+    if (t) { clearTimeout(t); roundTimers.delete(code); }
+  };
+  const scheduleRoundTimer = (room: Room, ms: number): void => {
+    clearRoundTimer(room.code);
+    const t = setTimeout(() => {
+      roundTimers.delete(room.code);
+      emitRoundResult(io, room);
+    }, Math.max(0, ms));
+    t.unref?.();
+    roundTimers.set(room.code, t);
+  };
+  const currentRoundDurationMs = (room: Room): number => {
+    const round = room.quiz.rounds[room.getCurrentRoundIndex()];
+    return round ? round.durationSeconds * 1000 : 0;
+  };
+
   io.on('connection', (socket: Socket) => {
     const data = socket.data as SocketData;
 
@@ -480,6 +550,7 @@ function wireSockets(
     socket.on('host:startRound', () => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
+      clearRoundTimer(room.code);
       const started = room.startNextRound();
       if (!started) {
         socket.emit('host:error', { message: 'Plus de manche à lancer.' });
@@ -512,55 +583,23 @@ function wireSockets(
       if (!room.markClipStarted()) return;
       const publicRound = toPublicRound(room);
       if (publicRound) socket.to(room.code).emit('player:roundStarted', { publicRound });
+      // Backstop serveur : la manche se clôt à sa durée + marge même si l'hôte disparaît.
+      scheduleRoundTimer(room, currentRoundDurationMs(room) + ROUND_END_GRACE_MS);
     });
 
     socket.on('host:endRound', () => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
-      const result = room.endRound();
-      if (!result) {
+      clearRoundTimer(room.code);
+      if (!emitRoundResult(io, room)) {
         socket.emit('host:error', { message: 'Aucune manche à clôturer.' });
-        return;
       }
-      const leaderboard = room.leaderboard();
-      const results: Record<
-        string,
-        {
-          correct: boolean;
-          pointsAwarded: number;
-          totalScore: number;
-          answeredBy: string | null;
-          streak: number;
-          comboBonus: number;
-        }
-      > = {};
-      for (const [playerId, r] of result.perPlayer) {
-        results[playerId] = {
-          correct: r.correct,
-          pointsAwarded: r.pointsAwarded,
-          totalScore: r.totalScore,
-          answeredBy: r.answeredBy ?? null,
-          streak: r.streak ?? 0,
-          comboBonus: r.comboBonus ?? 0,
-        };
-      }
-      io.to(room.code).emit('round:result', {
-        correctIndex: result.correctIndex,
-        answerLabel: result.answerLabel,
-        options: result.options,
-        distribution: result.distribution,
-        answeredCount: result.answeredCount,
-        correctCount: result.correctCount,
-        totalPlayers: result.totalPlayers,
-        results,
-        leaderboard,
-        isLastRound: room.isLastRound(),
-      });
     });
 
     socket.on('host:endGame', () => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
+      clearRoundTimer(room.code);
       room.endGame();
       io.to(room.code).emit('game:ended', { leaderboard: room.leaderboard() });
     });
@@ -569,6 +608,7 @@ function wireSockets(
     socket.on('host:cancelGame', () => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
+      clearRoundTimer(room.code);
       if (!room.cancelGame()) return;
       io.to(room.code).emit('game:cancelled', {
         quizTitle: room.quiz.title,
@@ -582,7 +622,10 @@ function wireSockets(
     socket.on('host:pauseRound', () => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
-      if (room.pause()) socket.to(room.code).emit('round:paused');
+      if (room.pause()) {
+        clearRoundTimer(room.code); // on gèle aussi le backstop serveur
+        socket.to(room.code).emit('round:paused');
+      }
     });
 
     socket.on('host:resumeRound', (payload: unknown) => {
@@ -590,12 +633,16 @@ function wireSockets(
       if (!room) return;
       const parsed = resumeSchema.safeParse(payload);
       const remainingSeconds = parsed.success ? Math.round(parsed.data.remainingSeconds) : 0;
-      if (room.resume()) socket.to(room.code).emit('round:resumed', { remainingSeconds });
+      if (room.resume()) {
+        scheduleRoundTimer(room, remainingSeconds * 1000 + ROUND_END_GRACE_MS);
+        socket.to(room.code).emit('round:resumed', { remainingSeconds });
+      }
     });
 
     socket.on('host:skipRound', () => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
+      clearRoundTimer(room.code);
       if (room.skipRound()) {
         io.to(room.code).emit('round:skipped', {
           leaderboard: room.leaderboard(),
