@@ -114,6 +114,13 @@
       }
     },
 
+    // Révélation manuelle : temps écoulé, réponses closes, en attente de l'hôte.
+    timeUp() {
+      $('#p-round-timer').textContent = '⏱️';
+      $('#p-round-bar').style.width = '0%';
+      $('#p-audio-label').textContent = '⏱️ Temps écoulé — en attente de la révélation…';
+    },
+
     // Le morceau démarre réellement : on dévoile les propositions.
     roundGo(m) {
       $('#p-audio-label').textContent = '🎵 À l\'écoute…';

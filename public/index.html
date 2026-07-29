@@ -147,6 +147,7 @@
         <p class="center" style="margin-top:16px;">
           Réponses reçues : <span class="count-pill" id="answer-count">0 / 0</span>
         </p>
+        <p class="center" id="round-status" style="margin-top:8px; font-weight:700; color:var(--accent-2);"></p>
         <div class="btn-row" id="manual-controls" style="margin-top:16px;">
           <button id="replay-clip" class="btn btn--ghost">🔁 Rejouer</button>
           <button id="pause-round" class="btn btn--ghost">⏸️ Pause</button>
@@ -234,6 +235,14 @@
         <p class="hint" id="audio-hint" style="display:none;">Chaque joueur entendra l'extrait sur son
           téléphone (il devra appuyer sur « Écouter »). Idéal à distance ; en présentiel, coupe le son de
           l'écran de l'hôte pour éviter l'écho.</p>
+        <div class="mode-select">
+          <span class="muted">🎬 Révélation de la réponse en fin de minuteur :</span>
+          <button id="reveal-auto" type="button" class="chip-btn active">Automatique</button>
+          <button id="reveal-manual" type="button" class="chip-btn">Manuelle</button>
+        </div>
+        <p class="hint" id="reveal-hint" style="display:none;">En fin de minuteur, la manche attend : les
+          réponses sont closes, tu peux rejouer l'extrait autant que tu veux, puis tu cliques « Révéler la
+          réponse » quand tu es prêt.</p>
         <p class="room-summary" id="room-config-summary"></p>
         <div class="btn-row" style="margin-top:18px;">
           <button id="room-config-confirm" class="btn btn--success">▶️ Ouvrir la salle</button>

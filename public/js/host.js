@@ -28,6 +28,7 @@
     autoTimer: null, // timer d'enchaînement automatique des manches
     autoSkipTimer: null, // timer de révélation anticipée quand tout le monde a répondu
     playerAudio: false, // son joué sur le téléphone des joueurs
+    manualReveal: false, // révélation manuelle : la manche attend l'hôte en fin de minuteur
     youtubeImport: false, // import de playlist YouTube disponible (clé API côté serveur)
   };
 
@@ -157,10 +158,28 @@
       updateTimer(state.remaining, state.total);
       if (state.remaining <= 0) {
         clearInterval(state.timer);
-        stopClip();
-        socket.emit(BT_EVENTS.HOST_END_ROUND);
+        if (state.manualReveal) {
+          // Révélation manuelle : on ferme les réponses, on ne révèle pas encore.
+          // L'hôte peut rejouer l'extrait puis cliquer « Révéler la réponse ».
+          socket.emit(BT_EVENTS.HOST_TIME_UP);
+          enterTimeUp();
+        } else {
+          stopClip();
+          socket.emit(BT_EVENTS.HOST_END_ROUND);
+        }
       }
     }, 1000);
+  }
+
+  // Fin du minuteur en révélation manuelle : réponses closes, en attente de l'hôte.
+  function enterTimeUp() {
+    $('#round-timer').textContent = '⏱️';
+    $('#round-bar').style.width = '0%';
+    const status = $('#round-status');
+    if (status) status.textContent = '⏱️ Temps écoulé — rejoue l\'extrait ou révèle la réponse.';
+    const pause = $('#pause-round');
+    if (pause) pause.disabled = true; // plus de pause une fois le temps écoulé
+    sendPresent({ type: 'timeUp' });
   }
 
   function replayClip() {
@@ -642,6 +661,8 @@
     state.clipStarted = false;
     state.paused = false;
     $('#pause-round').textContent = '⏸️ Pause';
+    $('#pause-round').disabled = false;
+    $('#round-status').textContent = '';
     show('screen-round');
     // Mode auto : la vidéo est masquée (l'écran de l'hôte est projeté et l'hôte
     // joue), les contrôles manuels disparaissent (tout s'enchaîne tout seul).
@@ -928,6 +949,14 @@
     updateRoomSummary();
   }
 
+  function setManualReveal(on) {
+    state.manualReveal = on;
+    $('#reveal-manual').classList.toggle('active', on);
+    $('#reveal-auto').classList.toggle('active', !on);
+    $('#reveal-hint').style.display = on ? '' : 'none';
+    updateRoomSummary();
+  }
+
   // --- Modale de configuration de la salle -------------------------------
   function updateRoomSummary() {
     const el = $('#room-config-summary');
@@ -938,6 +967,7 @@
       state.autoplay ? `🎮 Auto (${clampAutoDelay($('#auto-delay').value)}s d'attente)` : '🎬 Partie manuelle',
     ];
     if (state.playerAudio) parts.push('🔊 Son sur les tél.');
+    if (state.manualReveal && !state.autoplay) parts.push('🎬 Révélation manuelle');
     el.textContent = parts.join('  ·  ');
   }
 
@@ -958,6 +988,8 @@
     state.autoDelay = clampAutoDelay($('#auto-delay').value);
     socket.emit(BT_EVENTS.HOST_CREATE_ROOM, {
       quizId: state.pendingQuizId, mode: state.mode, combo: state.combo, playerAudio: state.playerAudio,
+      // Le mode auto révèle toujours automatiquement (l'hôte ne pilote pas).
+      manualReveal: state.manualReveal && !state.autoplay,
     });
     closeRoomConfig();
   }
@@ -1027,6 +1059,8 @@
   $('#auto-off').onclick = () => setAuto(false);
   $('#audio-on').onclick = () => setPlayerAudio(true);
   $('#audio-off').onclick = () => setPlayerAudio(false);
+  $('#reveal-manual').onclick = () => setManualReveal(true);
+  $('#reveal-auto').onclick = () => setManualReveal(false);
   $('#tab-login').onclick = () => setAuthMode('login');
   $('#tab-register').onclick = () => setAuthMode('register');
   $('#login-btn').onclick = doAuth;

@@ -472,6 +472,13 @@
     renderLeaderboard($('#feedback-leaderboard'), p.leaderboard, lbId());
   });
 
+  // Révélation manuelle : le serveur a clos les réponses (fin du minuteur).
+  socket.on(BT_EVENTS.ROUND_TIME_UP, () => {
+    stopTimer();
+    $$('#q-options .option').forEach((b) => { b.disabled = true; });
+    $('#q-status').textContent = '⏱️ Temps écoulé — en attente de la révélation…';
+  });
+
   socket.on(BT_EVENTS.GAME_ENDED, (p) => showFinal(p.leaderboard, p.awards));
 
   socket.on(BT_EVENTS.PLAYER_ERROR, (p) => {
