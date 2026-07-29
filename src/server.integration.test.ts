@@ -376,6 +376,10 @@ describe('Flux de partie de bout en bout (Socket.IO)', () => {
     const ranked = aliceResult.leaderboard;
     expect(ranked[0].pseudo).toBe('Alice');
     expect(ranked[0].rank).toBe(1);
+
+    // Main la plus rapide + payoff (miniature) présents dans le résultat.
+    expect(aliceResult.fastest).toMatchObject({ name: 'Alice' });
+    expect(aliceResult.youtubeId).toBeTruthy();
   });
 
   it('deux salles simultanées restent isolées', async () => {

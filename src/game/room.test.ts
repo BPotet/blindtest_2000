@@ -93,6 +93,35 @@ describe('Room — déroulé et scoring', () => {
     expect(perPlayer.get(slow.player.id)!.pointsAwarded).toBeGreaterThanOrEqual(BASE_POINTS);
   });
 
+  it('désigne la « main la plus rapide » parmi les bonnes réponses', () => {
+    const room = new Room(makeQuiz(), 'ABCDE');
+    const fast = room.addPlayer('Fast', 's1');
+    const slow = room.addPlayer('Slow', 's2');
+    const wrong = room.addPlayer('Wrong', 's3');
+    if (!('player' in fast) || !('player' in slow) || !('player' in wrong)) throw new Error();
+
+    room.startNextRound();
+    room.markClipStarted(1000);
+    room.submitAnswer(wrong.player.id, 0, 1200); // faux, même très rapide -> ignoré
+    room.submitAnswer(slow.player.id, 1, 9000); // bonne, lente
+    room.submitAnswer(fast.player.id, 1, 2000); // bonne, +1000ms -> la plus rapide
+
+    const result = room.endRound();
+    expect(result!.fastest).toEqual({ name: 'Fast', elapsedMs: 1000 });
+    // Le payoff : l'ID vidéo de la manche est dévoilé au résultat.
+    expect(result!.youtubeId).toBe('aaaaaaaaaaa');
+  });
+
+  it('aucune « main la plus rapide » si personne ne trouve', () => {
+    const room = new Room(makeQuiz(), 'ABCDE');
+    const a = room.addPlayer('A', 's1');
+    if (!('player' in a)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(1000);
+    room.submitAnswer(a.player.id, 0, 1500); // faux (bonne = index 1)
+    expect(room.endRound()!.fastest).toBeNull();
+  });
+
   it('calcule la répartition des réponses en fin de manche', () => {
     const room = new Room(makeQuiz(), 'ABCDE');
     const a = room.addPlayer('A', 's1');

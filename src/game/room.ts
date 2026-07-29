@@ -490,11 +490,15 @@ export class Room {
     correctIndex: number;
     answerLabel: string;
     options: string[];
+    /** ID vidéo YouTube de la manche — dévoilé au résultat (payoff : miniature). */
+    youtubeId: string;
     /** Nombre de réponses reçues par proposition (index = proposition). */
     distribution: number[];
     answeredCount: number;
     correctCount: number;
     totalPlayers: number;
+    /** Unité (joueur/équipe) ayant répondu juste le plus vite — la « main la plus rapide ». */
+    fastest: { name: string; elapsedMs: number } | null;
     perPlayer: Map<string, PlayerRoundResult>;
   } | null {
     if (this.state !== 'playing') return null;
@@ -506,6 +510,13 @@ export class Room {
     const distribution = new Array<number>(round.options.length).fill(0);
     let answeredCount = 0;
     let correctCount = 0;
+
+    // « Main la plus rapide » : l'unité (joueur ou équipe) qui a répondu JUSTE
+    // avec le plus petit temps de réponse mesuré côté serveur.
+    let fastest: { name: string; elapsedMs: number } | null = null;
+    const considerFastest = (name: string, elapsedMs: number): void => {
+      if (!fastest || elapsedMs < fastest.elapsedMs) fastest = { name, elapsedMs };
+    };
 
     // Comptabilise une réponse d'unité (équipe ou joueur) dans les stats de manche.
     const tally = (answer: RecordedAnswer | undefined): { correct: boolean; points: number } => {
@@ -533,6 +544,7 @@ export class Room {
         if (correct) {
           team.streak += 1;
           comboBonus = this.comboEnabled ? streakBonus(team.streak) : 0;
+          if (final) considerFastest(team.name, final.elapsedMs);
         } else {
           team.streak = 0;
         }
@@ -561,11 +573,13 @@ export class Room {
       }
     } else {
       for (const player of this.players.values()) {
-        const { correct, points } = tally(this.answers.get(player.id));
+        const ans = this.answers.get(player.id);
+        const { correct, points } = tally(ans);
         let comboBonus = 0;
         if (correct) {
           player.streak += 1;
           comboBonus = this.comboEnabled ? streakBonus(player.streak) : 0;
+          if (ans) considerFastest(player.pseudo, ans.elapsedMs);
         } else {
           player.streak = 0;
         }
@@ -589,10 +603,12 @@ export class Room {
       correctIndex: round.correctIndex,
       answerLabel: round.answerLabel,
       options: [...round.options],
+      youtubeId: round.youtubeId,
       distribution,
       answeredCount,
       correctCount,
       totalPlayers: this.respondentCount(),
+      fastest,
       perPlayer,
     };
   }

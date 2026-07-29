@@ -436,10 +436,13 @@ function emitRoundResult(io: IOServer, room: Room): boolean {
     correctIndex: result.correctIndex,
     answerLabel: result.answerLabel,
     options: result.options,
+    // Payoff : la miniature/le morceau ne sont dévoilés qu'au résultat (pas de spoiler).
+    youtubeId: result.youtubeId,
     distribution: result.distribution,
     answeredCount: result.answeredCount,
     correctCount: result.correctCount,
     totalPlayers: result.totalPlayers,
+    fastest: result.fastest,
     results,
     leaderboard: room.leaderboard(),
     isLastRound: room.isLastRound(),
