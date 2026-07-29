@@ -10,6 +10,9 @@ export const createRoomSchema = z.object({
   mode: z.enum(['solo', 'teams']).optional(),
   combo: z.boolean().optional(),
   playerAudio: z.boolean().optional(),
+  // Révélation manuelle : à la fin du minuteur, la manche attend que l'hôte
+  // révèle (il peut rejouer l'extrait). Par défaut, révélation automatique.
+  manualReveal: z.boolean().optional(),
 });
 
 // Import d'un blindtest depuis une playlist YouTube.

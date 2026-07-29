@@ -475,7 +475,13 @@ function wireSockets(
     clearRoundTimer(room.code);
     const t = setTimeout(() => {
       roundTimers.delete(room.code);
-      emitRoundResult(io, room);
+      // Révélation manuelle : à l'échéance, on FERME les réponses sans révéler.
+      // L'hôte révèle ensuite quand il veut (il peut rejouer l'extrait).
+      if (room.manualReveal) {
+        if (room.closeAnswers()) io.to(room.code).emit(EVENTS.ROUND_TIME_UP);
+      } else {
+        emitRoundResult(io, room);
+      }
     }, Math.max(0, ms));
     t.unref?.();
     roundTimers.set(room.code, t);
@@ -529,6 +535,7 @@ function wireSockets(
         parsed.data.mode ?? 'solo',
         parsed.data.combo ?? true,
         parsed.data.playerAudio ?? false,
+        parsed.data.manualReveal ?? false,
       );
       room.hostSocketId = socket.id;
       data.role = 'host';
@@ -623,6 +630,15 @@ function wireSockets(
       if (!emitRoundResult(io, room)) {
         socket.emit(EVENTS.HOST_ERROR, { message: 'Aucune manche à clôturer.' });
       }
+    });
+
+    // Révélation manuelle : fin du minuteur -> on ferme les réponses sans révéler.
+    // Les joueurs voient « temps écoulé », l'hôte peut rejouer puis révéler.
+    socket.on(EVENTS.HOST_TIME_UP, () => {
+      const room = getHostRoom(socket, roomManager);
+      if (!room) return;
+      clearRoundTimer(room.code); // plus de backstop : l'hôte contrôle la révélation
+      if (room.closeAnswers()) io.to(room.code).emit(EVENTS.ROUND_TIME_UP);
     });
 
     socket.on(EVENTS.HOST_END_GAME, () => {

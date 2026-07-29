@@ -119,6 +119,10 @@ export class Room {
   readonly comboEnabled: boolean;
   /** Son joué sur le téléphone des joueurs (opt-in de l'hôte). */
   readonly playerAudio: boolean;
+  /** Révélation manuelle : la manche attend l'hôte après le minuteur. */
+  readonly manualReveal: boolean;
+  /** Réponses closes (fin du minuteur) mais manche pas encore révélée. */
+  private answersClosed = false;
   createdAt = Date.now();
   lastActivityAt = Date.now();
 
@@ -128,12 +132,14 @@ export class Room {
     mode: RoomMode = 'solo',
     comboEnabled = true,
     playerAudio = false,
+    manualReveal = false,
   ) {
     this.quiz = quiz;
     this.code = code;
     this.mode = mode;
     this.comboEnabled = comboEnabled;
     this.playerAudio = playerAudio;
+    this.manualReveal = manualReveal;
     this.hostToken = generateId('host');
   }
 
@@ -351,6 +357,7 @@ export class Room {
     this.paused = false;
     this.pausedAt = 0;
     this.roundStartedAt = 0;
+    this.answersClosed = false;
     this.answers = new Map();
     this.teamVotes = new Map();
     this.teamLock = new Map();
@@ -449,6 +456,9 @@ export class Room {
     }
     if (this.paused) {
       return { accepted: false, reason: 'Manche en pause.' };
+    }
+    if (this.answersClosed) {
+      return { accepted: false, reason: 'Temps écoulé.' };
     }
     const player = this.players.get(playerId);
     if (!player) {
@@ -725,6 +735,23 @@ export class Room {
     return awards;
   }
 
+  /**
+   * Clôt la fenêtre de réponses sans révéler (fin du minuteur en mode révélation
+   * manuelle) : plus aucune réponse acceptée, mais la manche reste « en cours »
+   * tant que l'hôte n'a pas révélé. Idempotent. Renvoie false si non applicable.
+   */
+  closeAnswers(): boolean {
+    if (this.state !== 'playing' || this.answersClosed) return false;
+    this.answersClosed = true;
+    this.touch();
+    return true;
+  }
+
+  /** Les réponses de la manche en cours sont-elles closes (attente de révélation) ? */
+  areAnswersClosed(): boolean {
+    return this.answersClosed;
+  }
+
   endGame(): void {
     this.state = 'ended';
     this.touch();
@@ -742,6 +769,7 @@ export class Room {
     this.paused = false;
     this.pausedAt = 0;
     this.roundStartedAt = 0;
+    this.answersClosed = false;
     this.answers = new Map();
     this.teamVotes = new Map();
     this.teamLock = new Map();
@@ -789,12 +817,18 @@ export class Room {
 export class RoomManager {
   private readonly rooms = new Map<string, Room>();
 
-  create(quiz: Quiz, mode: RoomMode = 'solo', comboEnabled = true, playerAudio = false): Room {
+  create(
+    quiz: Quiz,
+    mode: RoomMode = 'solo',
+    comboEnabled = true,
+    playerAudio = false,
+    manualReveal = false,
+  ): Room {
     let code = generateRoomCode();
     while (this.rooms.has(code)) {
       code = generateRoomCode();
     }
-    const room = new Room(quiz, code, mode, comboEnabled, playerAudio);
+    const room = new Room(quiz, code, mode, comboEnabled, playerAudio, manualReveal);
     this.rooms.set(code, room);
     return room;
   }

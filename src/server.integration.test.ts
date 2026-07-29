@@ -382,6 +382,40 @@ describe('Flux de partie de bout en bout (Socket.IO)', () => {
     expect(aliceResult.youtubeId).toBeTruthy();
   });
 
+  it('révélation manuelle : timeUp ferme les réponses, l\'hôte révèle ensuite', async () => {
+    const host = connectHost();
+    await once(host, 'connect');
+    host.emit('host:createRoom', { quizId: 'demo-tubes', manualReveal: true });
+    const created = await once<any>(host, 'host:roomCreated');
+    const code = created.code;
+
+    const alice = connect();
+    alice.emit('player:join', { code, pseudo: 'Alice' });
+    await once(alice, 'player:joined');
+
+    host.emit('host:startRound');
+    await once<any>(host, 'host:roundStarted');
+    const roundStartedForPlayer = once<any>(alice, 'player:roundStarted');
+    host.emit('host:clipStarted');
+    await roundStartedForPlayer;
+
+    // Fin du minuteur en mode manuel : l'hôte signale le temps écoulé.
+    const timeUpP = once<any>(alice, 'round:timeUp');
+    host.emit('host:timeUp');
+    await timeUpP; // le joueur est prévenu
+
+    // Toute réponse après le temps écoulé est refusée.
+    const rejectedP = once<any>(alice, 'player:answerRejected');
+    alice.emit('player:answer', { optionIndex: 0 });
+    await rejectedP;
+
+    // L'hôte révèle quand il le décide -> résultat diffusé.
+    const resultP = once<any>(alice, 'round:result');
+    host.emit('host:endRound');
+    const result = await resultP;
+    expect(result.answerLabel).toBeTruthy();
+  });
+
   it('deux salles simultanées restent isolées', async () => {
     const host1 = connectHost();
     await once(host1, 'connect');

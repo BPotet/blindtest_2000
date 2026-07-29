@@ -141,6 +141,39 @@ describe('Room — déroulé et scoring', () => {
     expect(r.soloCorrect).toBeNull(); // deux ont trouvé
   });
 
+  it('révélation manuelle : closeAnswers ferme la fenêtre sans révéler', () => {
+    const room = new Room(makeQuiz(), 'ABCDE', 'solo', true, false, true);
+    expect(room.manualReveal).toBe(true);
+    const a = room.addPlayer('Alice', 's1');
+    const b = room.addPlayer('Bob', 's2');
+    if (!('player' in a) || !('player' in b)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(1000);
+    expect(room.submitAnswer(a.player.id, 1, 1500).accepted).toBe(true); // avant la fermeture
+
+    expect(room.closeAnswers()).toBe(true);
+    expect(room.areAnswersClosed()).toBe(true);
+    // Réponse refusée une fois le temps écoulé.
+    expect(room.submitAnswer(b.player.id, 1, 2000).accepted).toBe(false);
+    // La manche est toujours « en cours » : l'hôte peut encore révéler.
+    expect(room.getState()).toBe('playing');
+    const r = room.endRound();
+    expect(r).not.toBeNull();
+    expect(r!.answerLabel).toBe('Réponse 1');
+  });
+
+  it('closeAnswers est sans effet hors manche et se réinitialise à la manche suivante', () => {
+    const room = new Room(makeQuiz(), 'ABCDE', 'solo', true, false, true);
+    room.addPlayer('Alice', 's1');
+    expect(room.closeAnswers()).toBe(false); // pas de manche en cours
+    room.startNextRound();
+    room.markClipStarted(0);
+    expect(room.closeAnswers()).toBe(true);
+    room.endRound();
+    room.startNextRound(); // manche 2
+    expect(room.areAnswersClosed()).toBe(false); // réinitialisé
+  });
+
   it('« seul contre tous » quand une seule unité trouve', () => {
     const room = new Room(makeQuiz(), 'ABCDE');
     const alice = room.addPlayer('Alice', 's1');

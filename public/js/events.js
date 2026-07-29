@@ -14,6 +14,7 @@
     HOST_START_ROUND: 'host:startRound',
     HOST_CLIP_STARTED: 'host:clipStarted',
     HOST_END_ROUND: 'host:endRound',
+    HOST_TIME_UP: 'host:timeUp',
     HOST_ROUND_STARTED: 'host:roundStarted',
     HOST_PAUSE_ROUND: 'host:pauseRound',
     HOST_RESUME_ROUND: 'host:resumeRound',
@@ -51,6 +52,7 @@
 
     // Manche
     ROUND_RESULT: 'round:result',
+    ROUND_TIME_UP: 'round:timeUp',
     ROUND_PAUSED: 'round:paused',
     ROUND_RESUMED: 'round:resumed',
     ROUND_SKIPPED: 'round:skipped',
