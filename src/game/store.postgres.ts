@@ -25,7 +25,16 @@ export class PostgresQuizStore implements QuizRepository {
       connectionString: databaseUrl,
       ssl: needsSsl(databaseUrl) ? { rejectUnauthorized: false } : undefined,
       max: 5,
-      connectionTimeoutMillis: 10000,
+      connectionTimeoutMillis: 8000,
+      // Une requête ne doit jamais rester bloquée indéfiniment (base lente,
+      // verrou, réveil à froid Neon) : sinon `init()` peut figer le démarrage.
+      statement_timeout: 8000,
+      query_timeout: 8000,
+    });
+    // Une erreur sur un client inactif du pool émet un évènement 'error' : sans
+    // écouteur, Node ferait planter le process. On la logue et on continue.
+    this.pool.on('error', (err) => {
+      console.error('Erreur du pool PostgreSQL (client inactif) :', err.message);
     });
   }
 
