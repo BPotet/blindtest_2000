@@ -346,11 +346,29 @@ export class Room {
     if (this.isLastRound() && this.currentRoundIndex >= 0) return null;
 
     this.currentRoundIndex += 1;
-    const round = this.quiz.rounds[this.currentRoundIndex];
-    if (!round) return null;
+    if (!this.quiz.rounds[this.currentRoundIndex]) return null;
 
     // Nouvelle partie : on repart d'un palmarès vierge.
     if (this.currentRoundIndex === 0) this.gameStats.clear();
+
+    return this.openRoundState();
+  }
+
+  /**
+   * Rejoue la manche EN COURS : réponses effacées, minuteur remis à zéro, tout
+   * le monde peut répondre à nouveau (« nouvelle chance » quand personne n'a
+   * reconnu l'extrait). N'avance pas la manche et ne touche ni aux scores ni au
+   * palmarès (rien n'était encore appliqué : le scoring a lieu à la révélation).
+   */
+  replayRound(): { hostRound: HostRound; publicRound: PublicRound } | null {
+    if (this.state !== 'playing') return null;
+    return this.openRoundState();
+  }
+
+  /** Réinitialise l'état de manche (réponses, minuteur) et construit les vues. */
+  private openRoundState(): { hostRound: HostRound; publicRound: PublicRound } | null {
+    const round = this.quiz.rounds[this.currentRoundIndex];
+    if (!round) return null;
 
     this.state = 'playing';
     this.clipStarted = false;

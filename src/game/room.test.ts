@@ -174,6 +174,42 @@ describe('Room — déroulé et scoring', () => {
     expect(room.areAnswersClosed()).toBe(false); // réinitialisé
   });
 
+  it('rejouer la manche : efface les réponses et rouvre le MÊME round', () => {
+    const room = new Room(makeQuiz(), 'ABCDE');
+    const a = room.addPlayer('Alice', 's1');
+    if (!('player' in a)) throw new Error();
+    room.startNextRound();
+    const idx = room.getCurrentRoundIndex();
+    room.markClipStarted(0);
+    room.submitAnswer(a.player.id, 0, 500); // mauvaise (bonne = 1)
+
+    const replay = room.replayRound();
+    expect(replay).not.toBeNull();
+    expect(room.getCurrentRoundIndex()).toBe(idx); // même manche, pas la suivante
+    expect(room.areAnswersClosed()).toBe(false);
+
+    // La réponse précédente est effacée : on peut re-répondre (et bien, cette fois).
+    room.markClipStarted(0);
+    expect(room.submitAnswer(a.player.id, 1, 300).accepted).toBe(true);
+    expect(room.endRound()!.perPlayer.get(a.player.id)!.correct).toBe(true);
+  });
+
+  it('rejouer rouvre les réponses après un temps écoulé (révélation manuelle)', () => {
+    const room = new Room(makeQuiz(), 'ABCDE', 'solo', true, false, true);
+    const a = room.addPlayer('Alice', 's1');
+    if (!('player' in a)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.closeAnswers(); // temps écoulé
+    expect(room.replayRound()).not.toBeNull();
+    expect(room.areAnswersClosed()).toBe(false);
+  });
+
+  it('rejouer refusé hors d\'une manche', () => {
+    const room = new Room(makeQuiz(), 'ABCDE');
+    expect(room.replayRound()).toBeNull(); // au lobby
+  });
+
   it('« seul contre tous » quand une seule unité trouve', () => {
     const room = new Room(makeQuiz(), 'ABCDE');
     const alice = room.addPlayer('Alice', 's1');

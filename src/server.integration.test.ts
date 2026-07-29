@@ -416,6 +416,39 @@ describe('Flux de partie de bout en bout (Socket.IO)', () => {
     expect(result.answerLabel).toBeTruthy();
   });
 
+  it('rejouer la manche : nouvelle chance, réponses effacées, même manche', async () => {
+    const host = connectHost();
+    await once(host, 'connect');
+    host.emit('host:createRoom', { quizId: 'demo-tubes' });
+    const created = await once<any>(host, 'host:roomCreated');
+    const code = created.code;
+
+    const alice = connect();
+    alice.emit('player:join', { code, pseudo: 'Alice' });
+    await once(alice, 'player:joined');
+
+    host.emit('host:startRound');
+    const firstRound = await once<any>(host, 'host:roundStarted');
+    host.emit('host:clipStarted');
+    await once<any>(alice, 'player:roundStarted');
+    alice.emit('player:answer', { optionIndex: 1 });
+    await once(alice, 'player:answerAccepted');
+
+    // L'hôte fait rejouer : le joueur repasse en chargement, même manche.
+    const loadingP = once<any>(alice, 'player:roundLoading');
+    const replayRoundP = once<any>(host, 'host:roundStarted');
+    host.emit('host:replayRound');
+    const [, replayRound] = await Promise.all([loadingP, replayRoundP]);
+    expect(replayRound.hostRound.roundIndex).toBe(firstRound.hostRound.roundIndex);
+
+    // La manche est rouverte : le joueur peut répondre à nouveau.
+    host.emit('host:clipStarted');
+    await once<any>(alice, 'player:roundStarted');
+    const reAnswerP = once<any>(alice, 'player:answerAccepted');
+    alice.emit('player:answer', { optionIndex: 0 });
+    expect(await reAnswerP).toBeTruthy();
+  });
+
   it('deux salles simultanées restent isolées', async () => {
     const host1 = connectHost();
     await once(host1, 'connect');

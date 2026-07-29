@@ -605,6 +605,28 @@ function wireSockets(
       });
     });
 
+    // « Rejouer » : on refait la manche EN COURS — réponses effacées, minuteur
+    // remis à zéro, tout le monde répond à nouveau. Même flux qu'un démarrage.
+    socket.on(EVENTS.HOST_REPLAY_ROUND, () => {
+      const room = getHostRoom(socket, roomManager);
+      if (!room) return;
+      clearRoundTimer(room.code);
+      const started = room.replayRound();
+      if (!started) {
+        socket.emit(EVENTS.HOST_ERROR, { message: 'Aucune manche à rejouer.' });
+        return;
+      }
+      socket.emit(EVENTS.HOST_ROUND_STARTED, {
+        hostRound: started.hostRound,
+        answeredCount: 0,
+        playerCount: room.respondentCount(),
+      });
+      socket.to(room.code).emit(EVENTS.PLAYER_ROUND_LOADING, {
+        roundIndex: started.publicRound.roundIndex,
+        totalRounds: started.publicRound.totalRounds,
+      });
+    });
+
     // L'hôte lance le décompte « 3·2·1 » -> on le diffuse aux joueurs.
     socket.on(EVENTS.HOST_BEGIN_COUNTDOWN, () => {
       const room = getHostRoom(socket, roomManager);

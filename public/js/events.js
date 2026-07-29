@@ -15,6 +15,7 @@
     HOST_CLIP_STARTED: 'host:clipStarted',
     HOST_END_ROUND: 'host:endRound',
     HOST_TIME_UP: 'host:timeUp',
+    HOST_REPLAY_ROUND: 'host:replayRound',
     HOST_ROUND_STARTED: 'host:roundStarted',
     HOST_PAUSE_ROUND: 'host:pauseRound',
     HOST_RESUME_ROUND: 'host:resumeRound',
