@@ -439,7 +439,30 @@
     } else {
       streakEl.textContent = '';
     }
+    // Combo en feu : la flamme grossit avec la série (plafonnée) sur une bonne réponse.
+    const flame = $('#feedback-flame');
+    if (mine && mine.correct && mine.streak >= 2) {
+      const n = Math.min(mine.streak, 6);
+      flame.textContent = '🔥'.repeat(Math.min(3, n - 1));
+      flame.style.fontSize = `${28 + n * 8}px`;
+      flame.hidden = false;
+    } else {
+      flame.hidden = true;
+    }
+    // Halo de couleur selon la place au classement (1er/2e/3e).
+    banner.classList.remove('rank-halo-1', 'rank-halo-2', 'rank-halo-3');
+    const myRank = (p.leaderboard || []).find((e) => e.playerId === lbId())?.rank;
+    if (myRank >= 1 && myRank <= 3) banner.classList.add(`rank-halo-${myRank}`);
     $('#feedback-answer').textContent = `La réponse : ${p.answerLabel}`;
+    // Payoff : miniature du morceau (dévoilée seulement maintenant).
+    const thumb = $('#feedback-thumb');
+    if (p.youtubeId) {
+      thumb.src = `https://img.youtube.com/vi/${p.youtubeId}/hqdefault.jpg`;
+      thumb.hidden = false;
+    } else {
+      thumb.hidden = true;
+      thumb.removeAttribute('src');
+    }
     window.App.renderDistribution($('#feedback-distribution'), {
       options: p.options,
       distribution: p.distribution,

@@ -130,6 +130,23 @@
       mode = m.mode || mode;
       show('present-result');
       $('#p-result-answer').textContent = m.skipped ? (m.title || '⏭️ Manche passée') : m.answerLabel;
+      // Payoff : miniature du morceau dévoilée seulement maintenant (pas de spoiler avant).
+      const thumb = $('#p-result-thumb');
+      if (!m.skipped && m.youtubeId) {
+        thumb.src = `https://img.youtube.com/vi/${m.youtubeId}/hqdefault.jpg`;
+        thumb.hidden = false;
+      } else {
+        thumb.hidden = true;
+        thumb.removeAttribute('src');
+      }
+      // « Main la plus rapide » de la manche.
+      const fast = $('#p-result-fastest');
+      if (!m.skipped && m.fastest && m.fastest.name) {
+        fast.textContent = `⚡ Main la plus rapide : ${m.fastest.name}`;
+        fast.hidden = false;
+      } else {
+        fast.hidden = true;
+      }
       if (m.skipped) {
         $('#p-result-dist-card').style.display = 'none';
       } else {
@@ -147,11 +164,13 @@
 
     ended(m) {
       show('present-ended');
+      // Le podium se révèle 3 → 2 → 1 (animation CSS par rang) ; les confettis
+      // partent quand la 1re place apparaît, pour le payoff.
       renderPodium($('#p-final-podium'), m.leaderboard || [], null);
       const rest = (m.leaderboard || []).slice(3);
       if (rest.length) renderLeaderboard($('#p-final-leaderboard'), rest, null);
       else $('#p-final-leaderboard').innerHTML = '';
-      window.App.confetti();
+      setTimeout(() => window.App.confetti(), 1400);
     },
   };
 

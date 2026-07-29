@@ -724,6 +724,8 @@
         correctCount: p.correctCount,
         totalPlayers: p.totalPlayers,
         leaderboard: p.leaderboard,
+        youtubeId: p.youtubeId,
+        fastest: p.fastest,
         mode: state.roomMode,
       });
     }, 1200);
