@@ -115,9 +115,15 @@
     },
 
     // Le morceau démarre réellement : on dévoile les propositions.
-    roundGo() {
+    roundGo(m) {
       $('#p-audio-label').textContent = '🎵 À l\'écoute…';
       renderOptions(lastRoundOptions);
+      // Précharge la miniature du payoff (cache chaud) pour qu'elle s'affiche
+      // instantanément à la révélation. Non affichée ici : aucun spoiler.
+      if (m && m.preloadThumbId) {
+        const img = new Image();
+        img.src = `https://img.youtube.com/vi/${m.preloadThumbId}/hqdefault.jpg`;
+      }
     },
 
     timer(m) { updateTimer(m.remaining, m.total); },

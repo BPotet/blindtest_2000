@@ -133,10 +133,13 @@
   }
 
   // Dévoile les propositions sur l'écran public au vrai départ du morceau.
+  // On joint l'ID vidéo pour que l'écran public PRÉCHARGE la miniature du payoff
+  // (cache chaud) — elle apparaîtra instantanément à la révélation, sans décalage.
+  // L'écran public est piloté par l'hôte (pas un téléphone joueur) : aucun spoiler.
   function presentRoundGo() {
     if (pres.scene === 'round') {
       pres.data.started = true;
-      sendPresent({ type: 'roundGo' });
+      sendPresent({ type: 'roundGo', preloadThumbId: state.round && state.round.youtubeId });
     }
   }
 
