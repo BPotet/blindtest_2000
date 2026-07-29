@@ -14,8 +14,11 @@ services:
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
+      # Majeure seulement : Render choisit le dernier 22.x disponible. Éviter un
+      # pin exact (ex. 22.22.2) qui peut faire échouer le build si cette version
+      # précise n'est pas provisionnable.
       - key: NODE_VERSION
-        value: "22.22.2"
+        value: "22"
       - key: NODE_ENV
         value: production
       # PUBLIC_BASE_URL est facultatif : Render expose RENDER_EXTERNAL_URL,
