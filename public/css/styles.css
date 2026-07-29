@@ -394,4 +394,10 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
   /* Chips de mode/combo : occupent la largeur disponible. */
   .mode-select { gap: 8px; }
   .lobby-grid { gap: 14px; }
+  /* Cartes de quiz empilées : méta au-dessus, actions en dessous. Évite que les
+     3 boutons (Ouvrir / Éditer / 🗑️) d'un quiz possédé recouvrent le titre. */
+  .quiz-item { flex-direction: column; align-items: stretch; gap: 12px; }
+  .quiz-item__actions { width: 100%; }
+  .quiz-item__actions .btn:not(.btn--ghost) { flex: 1 1 100%; } /* « Ouvrir une salle » pleine largeur */
+  .quiz-item__actions .btn--ghost { flex: 1 1 auto; }           /* Éditer / 🗑️ partagent la ligne */
 }
