@@ -198,17 +198,6 @@
     }, secs * 1000);
   }
 
-  // Rejoue UNIQUEMENT l'extrait (du départ à sa fin), sans toucher au minuteur ni
-  // à l'état de la manche : c'est une simple relecture audio, pas un redémarrage.
-  function replayClip() {
-    if (!state.yt) return;
-    try {
-      state.yt.seekTo(state.round.startSeconds, true);
-      state.yt.playVideo();
-    } catch (_) {}
-    scheduleExtractStop();
-  }
-
   function togglePause() {
     if (state.paused) {
       state.paused = false;
@@ -1062,7 +1051,13 @@
   $('#save-quiz').onclick = saveQuiz;
   $('#start-game').onclick = () => socket.emit(BT_EVENTS.HOST_START_ROUND);
   $('#reveal-answer').onclick = () => { $('#reveal-answer').disabled = true; stopClip(); socket.emit(BT_EVENTS.HOST_END_ROUND); };
-  $('#replay-clip').onclick = replayClip;
+  // « Rejouer » = refaire la manche en cours : nouvelle chance pour tout le monde
+  // (réponses effacées, minuteur relancé). Confirmation pour éviter un clic malheureux.
+  $('#replay-clip').onclick = () => {
+    if (window.confirm('Rejouer la manche ? Les réponses en cours seront effacées et tout le monde rejoue.')) {
+      socket.emit(BT_EVENTS.HOST_REPLAY_ROUND);
+    }
+  };
   $('#pause-round').onclick = togglePause;
   $('#skip-round').onclick = () => { if (window.confirm('Passer cette manche (aucun point) ?')) socket.emit(BT_EVENTS.HOST_SKIP_ROUND); };
   $('#next-round').onclick = () => socket.emit(BT_EVENTS.HOST_START_ROUND);
