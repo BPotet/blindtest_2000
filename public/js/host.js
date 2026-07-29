@@ -350,7 +350,7 @@
       `<input class="r-yt" style="flex:1" placeholder="https://youtu.be/..." value="${escapeHtml(d?.youtube ?? '')}" />` +
       `<button type="button" class="btn btn--ghost btn--sm r-preview" title="Écouter l'extrait pour te rappeler le morceau">▶️ Aperçu</button>` +
       `</div>` +
-      `<div style="display:flex; gap:10px;">` +
+      `<div class="field-row">` +
       `<div style="flex:1"><label>Départ (s)</label><input class="r-start" type="number" min="0" value="${d?.startSeconds ?? 0}" /></div>` +
       `<div style="flex:1"><label>Durée (s)</label><input class="r-dur" type="number" min="5" max="60" value="${d?.durationSeconds ?? 20}" /></div></div>` +
       `<label>Question posée aux joueurs</label><input class="r-q" value="${escapeHtml(d?.question ?? 'Quel est ce morceau ?')}" />` +

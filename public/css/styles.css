@@ -48,8 +48,9 @@ body {
 
 .brand {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
   margin-bottom: 24px;
 }
 .brand__logo {
@@ -191,8 +192,8 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
 }
 .lobby-grid { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: center; }
 @media (min-width: 720px) { .lobby-grid { grid-template-columns: 320px 1fr; } }
-.qr { background: #fff; padding: 12px; border-radius: var(--radius-sm); width: fit-content; margin: 0 auto; }
-.qr img { display: block; width: 260px; height: 260px; }
+.qr { background: #fff; padding: 12px; border-radius: var(--radius-sm); width: fit-content; max-width: 100%; margin: 0 auto; }
+.qr img { display: block; width: min(260px, 62vw); height: auto; aspect-ratio: 1 / 1; }
 .join-url { word-break: break-all; font-size: 13px; }
 
 .players { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
@@ -367,3 +368,30 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
 /* En pause : les barres se figent et se ternissent. */
 .audio-stage.paused .eq span { animation-play-state: paused; opacity: 0.4; }
 @media (prefers-reduced-motion: reduce) { .eq span { animation: none; height: 52px; } }
+
+/* Rangée de champs côte à côte (constructeur, import) : passe à la ligne si trop étroit. */
+.field-row { display: flex; gap: 10px; }
+.field-row > div { flex: 1; min-width: 0; }
+
+/* --- Écran de l'hôte sur mobile --- */
+@media (max-width: 560px) {
+  .app { padding: 14px; }
+  .brand { margin-bottom: 16px; column-gap: 8px; row-gap: 8px; }
+  .brand__tag { font-size: 12px; }
+  /* Boutons du header plus compacts pour tenir sur une ligne. */
+  .brand .btn { padding: 8px 12px; font-size: 13px; }
+  #host-user { font-size: 13px; }
+  .icon-btn { width: 36px; height: 36px; font-size: 16px; }
+  .card { padding: 16px; }
+  .modal { padding: 18px; }
+  h1 { font-size: 22px; }
+  /* Boutons pleine largeur, empilés, plus faciles au pouce. */
+  .btn-row { gap: 10px; }
+  .btn-row .btn { flex: 1 1 100%; }
+  /* Champs côte à côte -> 2 par ligne max sur petit écran. */
+  .field-row { flex-wrap: wrap; }
+  .field-row > div { flex: 1 1 44%; }
+  /* Chips de mode/combo : occupent la largeur disponible. */
+  .mode-select { gap: 8px; }
+  .lobby-grid { gap: 14px; }
+}
