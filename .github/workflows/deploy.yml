@@ -1,0 +1,35 @@
+name: Déploiement Render
+
+# Filet de sécurité : déclenche un déploiement Render à chaque push sur main via
+# le Deploy Hook du service. Utile quand l'auto-deploy natif de Render ne part
+# pas (webhook GitHub rompu, branche mal configurée) — le hook, lui, marche
+# indépendamment de la connexion GitHub de Render.
+#
+# Pré-requis (une seule fois) : ajouter l'URL du hook dans
+# Settings → Secrets and variables → Actions → New repository secret
+#   Nom   : RENDER_DEPLOY_HOOK_URL
+#   Valeur: l'URL affichée sur Render (Settings → Deploy Hook)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {} # permet aussi un déclenchement manuel depuis l'onglet Actions
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Déclencher le déploiement Render
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::warning::RENDER_DEPLOY_HOOK_URL n'est pas défini — ajoute le secret dans Settings → Secrets → Actions. Déploiement ignoré."
+            exit 0
+          fi
+          echo "Appel du Deploy Hook Render…"
+          code=$(curl -fsS -w '%{http_code}' -o /dev/null -X POST "$HOOK") && \
+            echo "Déploiement déclenché (HTTP $code)." || {
+              echo "::error::Échec de l'appel au Deploy Hook Render."
+              exit 1
+            }
