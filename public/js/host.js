@@ -17,6 +17,7 @@
     editingQuizId: null,
     clipStarted: false,
     clipFallback: null,
+    clipStopTimer: null, // borne dure : met l'extrait en pause à la fin de sa durée
     total: 0,
     remaining: 0,
     paused: false,
@@ -131,6 +132,7 @@
     socket.emit(BT_EVENTS.HOST_CLIP_STARTED);
     presentRoundGo(); // dévoile les propositions sur l'écran public (pas avant !)
     startCountdown(state.round.durationSeconds);
+    scheduleExtractStop(); // l'extrait s'arrête à sa fin, même en révélation manuelle
   }
 
   // Dévoile les propositions sur l'écran public au vrai départ du morceau.
@@ -173,6 +175,10 @@
 
   // Fin du minuteur en révélation manuelle : réponses closes, en attente de l'hôte.
   function enterTimeUp() {
+    // On met l'extrait en pause à sa fin (il ne doit pas déborder sur le morceau) ;
+    // l'hôte pourra le rejouer via « Rejouer » avant de révéler.
+    clearTimeout(state.clipStopTimer);
+    try { if (state.yt) state.yt.pauseVideo(); } catch (_) {}
     $('#round-timer').textContent = '⏱️';
     $('#round-bar').style.width = '0%';
     const status = $('#round-status');
@@ -182,8 +188,25 @@
     sendPresent({ type: 'timeUp' });
   }
 
+  // Borne l'extrait : met la vidéo en pause à la fin de sa durée pour ne pas
+  // déborder sur le reste du morceau (le lecteur YouTube joue sinon toute la vidéo).
+  function scheduleExtractStop() {
+    clearTimeout(state.clipStopTimer);
+    const secs = Math.max(1, Number(state.round && state.round.durationSeconds) || 0);
+    state.clipStopTimer = setTimeout(() => {
+      try { if (state.yt) state.yt.pauseVideo(); } catch (_) {}
+    }, secs * 1000);
+  }
+
+  // Rejoue UNIQUEMENT l'extrait (du départ à sa fin), sans toucher au minuteur ni
+  // à l'état de la manche : c'est une simple relecture audio, pas un redémarrage.
   function replayClip() {
-    try { if (state.yt) { state.yt.seekTo(state.round.startSeconds, true); state.yt.playVideo(); } } catch (_) {}
+    if (!state.yt) return;
+    try {
+      state.yt.seekTo(state.round.startSeconds, true);
+      state.yt.playVideo();
+    } catch (_) {}
+    scheduleExtractStop();
   }
 
   function togglePause() {
@@ -207,6 +230,7 @@
   function stopClip() {
     clearInterval(state.timer);
     clearTimeout(state.clipFallback);
+    clearTimeout(state.clipStopTimer);
     state.clipStarted = true; // empêche un démarrage tardif après clôture
     try { if (state.yt) state.yt.pauseVideo(); } catch (_) {}
   }
