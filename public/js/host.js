@@ -127,7 +127,7 @@
     if (state.clipStarted) return;
     state.clipStarted = true;
     clearTimeout(state.clipFallback);
-    socket.emit('host:clipStarted');
+    socket.emit(BT_EVENTS.HOST_CLIP_STARTED);
     presentRoundGo(); // dévoile les propositions sur l'écran public (pas avant !)
     startCountdown(state.round.durationSeconds);
   }
@@ -155,7 +155,7 @@
       if (state.remaining <= 0) {
         clearInterval(state.timer);
         stopClip();
-        socket.emit('host:endRound');
+        socket.emit(BT_EVENTS.HOST_END_ROUND);
       }
     }, 1000);
   }
@@ -169,14 +169,14 @@
       state.paused = false;
       try { if (state.yt) state.yt.playVideo(); } catch (_) {}
       runCountdown();
-      socket.emit('host:resumeRound', { remainingSeconds: state.remaining });
+      socket.emit(BT_EVENTS.HOST_RESUME_ROUND, { remainingSeconds: state.remaining });
       $('#pause-round').textContent = '⏸️ Pause';
       presentPaused(false);
     } else {
       state.paused = true;
       clearInterval(state.timer);
       try { if (state.yt) state.yt.pauseVideo(); } catch (_) {}
-      socket.emit('host:pauseRound');
+      socket.emit(BT_EVENTS.HOST_PAUSE_ROUND);
       $('#pause-round').textContent = '▶️ Reprendre';
       presentPaused(true);
     }
@@ -600,7 +600,7 @@
   }
 
   // --- Événements Socket --------------------------------------------------
-  socket.on('host:roomCreated', (p) => {
+  socket.on(BT_EVENTS.HOST_ROOM_CREATED, (p) => {
     state.code = p.code;
     state.hostToken = p.hostToken;
     state.roomMode = p.mode || 'solo';
@@ -610,7 +610,7 @@
     enterLobby(p.quizTitle, p.players, p.teams);
   });
 
-  socket.on('host:snapshot', (p) => {
+  socket.on(BT_EVENTS.HOST_SNAPSHOT, (p) => {
     state.code = p.code;
     state.roomMode = p.mode || 'solo';
     if (p.state === 'lobby') {
@@ -635,9 +635,9 @@
     }
   });
 
-  socket.on('room:players', (p) => updatePlayers(p.players, p.teams));
+  socket.on(BT_EVENTS.ROOM_PLAYERS, (p) => updatePlayers(p.players, p.teams));
 
-  socket.on('host:roundStarted', (p) => {
+  socket.on(BT_EVENTS.HOST_ROUND_STARTED, (p) => {
     cancelAutoNext();
     cancelAutoSkip();
     state.round = p.hostRound;
@@ -666,7 +666,7 @@
     });
     if (p.hostRound.roundIndex === 0) {
       // 1re manche : décompte « 3·2·1 » PUIS lecture.
-      socket.emit('host:beginCountdown');
+      socket.emit(BT_EVENTS.HOST_BEGIN_COUNTDOWN);
       window.App.playCountdown(3, loadClip);
     } else {
       // Manches suivantes : lecture immédiate, sans décompte.
@@ -674,7 +674,7 @@
     }
   });
 
-  socket.on('host:answerUpdate', (p) => {
+  socket.on(BT_EVENTS.HOST_ANSWER_UPDATE, (p) => {
     $('#answer-count').textContent = `${p.answered} / ${p.playerCount}`;
     presentAnswers(p.answered, p.playerCount);
     maybeAutoSkip(p.answered, p.playerCount);
@@ -689,7 +689,7 @@
       state.autoSkipTimer = null;
       clearInterval(state.timer); // stoppe le décompte de manche (on clôt en avance)
       stopClip();
-      socket.emit('host:endRound');
+      socket.emit(BT_EVENTS.HOST_END_ROUND);
     }, AUTO_SKIP_MS);
   }
 
@@ -697,7 +697,7 @@
     if (state.autoSkipTimer) { clearTimeout(state.autoSkipTimer); state.autoSkipTimer = null; }
   }
 
-  socket.on('round:result', (p) => {
+  socket.on(BT_EVENTS.ROUND_RESULT, (p) => {
     cancelAutoSkip();
     stopClip();
     // Surligne la bonne réponse sur l'écran hôte.
@@ -734,7 +734,7 @@
     }, 1200);
   });
 
-  socket.on('round:skipped', (p) => {
+  socket.on(BT_EVENTS.ROUND_SKIPPED, (p) => {
     cancelAutoSkip();
     stopClip();
     show('screen-result');
@@ -753,7 +753,7 @@
     const hint = $('#auto-next-hint');
     let remaining = clampAutoDelay(state.autoDelay);
     // Les joueurs voient le même décompte sur leur écran de résultat.
-    socket.emit('host:autoNext', { seconds: remaining, isLast: isLastRound });
+    socket.emit(BT_EVENTS.HOST_AUTO_NEXT, { seconds: remaining, isLast: isLastRound });
     const label = () => {
       hint.textContent = isLastRound
         ? `🏁 Classement final dans ${remaining}…`
@@ -765,7 +765,7 @@
       remaining -= 1;
       if (remaining <= 0) {
         cancelAutoNext();
-        socket.emit(isLastRound ? 'host:endGame' : 'host:startRound');
+        socket.emit(isLastRound ? BT_EVENTS.HOST_END_GAME : BT_EVENTS.HOST_START_ROUND);
       } else {
         label();
       }
@@ -778,7 +778,7 @@
     if (hint) hint.style.display = 'none';
   }
 
-  socket.on('game:ended', (p) => {
+  socket.on(BT_EVENTS.GAME_ENDED, (p) => {
     cancelAutoNext();
     show('screen-ended');
     window.App.renderPodium($('#final-podium'), p.leaderboard, null);
@@ -792,7 +792,7 @@
   });
 
   // Partie annulée : retour au lobby (tout le monde y revient, scores à zéro).
-  socket.on('game:cancelled', (p) => {
+  socket.on(BT_EVENTS.GAME_CANCELLED, (p) => {
     cancelAutoNext();
     cancelAutoSkip();
     stopClip();
@@ -806,10 +806,10 @@
     cancelAutoNext();
     cancelAutoSkip();
     stopClip();
-    socket.emit('host:cancelGame');
+    socket.emit(BT_EVENTS.HOST_CANCEL_GAME);
   }
 
-  socket.on('host:error', (p) => {
+  socket.on(BT_EVENTS.HOST_ERROR, (p) => {
     toast(p.message || 'Erreur.');
     if (p.fatal) localStorage.removeItem('bt_host');
   });
@@ -848,7 +848,7 @@
     kick.onclick = (e) => {
       e.stopPropagation();
       if (window.confirm(`Exclure ${pl.pseudo} de la partie ?`)) {
-        socket.emit('host:kickPlayer', { playerId: pl.id });
+        socket.emit(BT_EVENTS.HOST_KICK_PLAYER, { playerId: pl.id });
       }
     };
     chip.appendChild(kick);
@@ -952,7 +952,7 @@
   function confirmRoomConfig() {
     if (!state.pendingQuizId) return;
     state.autoDelay = clampAutoDelay($('#auto-delay').value);
-    socket.emit('host:createRoom', {
+    socket.emit(BT_EVENTS.HOST_CREATE_ROOM, {
       quizId: state.pendingQuizId, mode: state.mode, combo: state.combo, playerAudio: state.playerAudio,
     });
     closeRoomConfig();
@@ -1020,13 +1020,13 @@
   $('#add-round').onclick = () => addRoundBlock();
   $('#builder-rounds').addEventListener('click', onBuilderRoundsClick);
   $('#save-quiz').onclick = saveQuiz;
-  $('#start-game').onclick = () => socket.emit('host:startRound');
-  $('#reveal-answer').onclick = () => { $('#reveal-answer').disabled = true; stopClip(); socket.emit('host:endRound'); };
+  $('#start-game').onclick = () => socket.emit(BT_EVENTS.HOST_START_ROUND);
+  $('#reveal-answer').onclick = () => { $('#reveal-answer').disabled = true; stopClip(); socket.emit(BT_EVENTS.HOST_END_ROUND); };
   $('#replay-clip').onclick = replayClip;
   $('#pause-round').onclick = togglePause;
-  $('#skip-round').onclick = () => { if (window.confirm('Passer cette manche (aucun point) ?')) socket.emit('host:skipRound'); };
-  $('#next-round').onclick = () => socket.emit('host:startRound');
-  $('#end-game').onclick = () => { cancelAutoNext(); socket.emit('host:endGame'); };
+  $('#skip-round').onclick = () => { if (window.confirm('Passer cette manche (aucun point) ?')) socket.emit(BT_EVENTS.HOST_SKIP_ROUND); };
+  $('#next-round').onclick = () => socket.emit(BT_EVENTS.HOST_START_ROUND);
+  $('#end-game').onclick = () => { cancelAutoNext(); socket.emit(BT_EVENTS.HOST_END_GAME); };
   $('#cancel-game').onclick = cancelGame;
   $('#cancel-game-2').onclick = cancelGame;
   $('#auto-delay').addEventListener('change', () => { state.autoDelay = clampAutoDelay($('#auto-delay').value); $('#auto-delay').value = state.autoDelay; updateRoomSummary(); });
@@ -1062,7 +1062,7 @@
         state.hostToken = hostToken;
         state.autoplay = !!autoplay;
         if (autoDelay != null) state.autoDelay = clampAutoDelay(autoDelay);
-        socket.emit('host:reconnect', { code, hostToken });
+        socket.emit(BT_EVENTS.HOST_RECONNECT, { code, hostToken });
       }
     } catch (_) { localStorage.removeItem('bt_host'); }
   }

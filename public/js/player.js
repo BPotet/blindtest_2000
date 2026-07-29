@@ -178,7 +178,7 @@
     if (state.mode === 'teams') {
       // Vote d'équipe : modifiable tant que l'équipe n'est pas verrouillée.
       state.myVote = i;
-      socket.emit('player:answer', { optionIndex: i });
+      socket.emit(BT_EVENTS.PLAYER_ANSWER, { optionIndex: i });
       window.App.Sound.tick();
       $$('#q-options .option').forEach((b) => b.classList.toggle('chosen', Number(b.dataset.i) === i));
       return;
@@ -188,7 +188,7 @@
     if (state.answered) return;
     state.answered = true;
     state.lastChoice = i;
-    socket.emit('player:answer', { optionIndex: i });
+    socket.emit(BT_EVENTS.PLAYER_ANSWER, { optionIndex: i });
     $$('#q-options .option').forEach((b) => {
       b.disabled = true;
       if (Number(b.dataset.i) !== i) b.classList.add('dimmed');
@@ -241,7 +241,7 @@
   }
 
   // --- Événements Socket --------------------------------------------------
-  socket.on('player:joined', (p) => {
+  socket.on(BT_EVENTS.PLAYER_JOINED, (p) => {
     state.playerId = p.playerId;
     state.code = p.code;
     state.mode = p.mode || 'solo';
@@ -257,7 +257,7 @@
       + (state.playerAudio ? ' · 🎧 son sur ton tél' : '');
   });
 
-  socket.on('player:snapshot', (p) => {
+  socket.on(BT_EVENTS.PLAYER_SNAPSHOT, (p) => {
     state.playerId = p.playerId;
     state.code = p.code;
     state.mode = p.mode || 'solo';
@@ -290,9 +290,9 @@
   // La manche se prépare (la vidéo charge chez l'hôte) : on patiente, pas de
   // minuteur ni de propositions tant que l'extrait n'a pas démarré.
   // Mode auto : temps restant avant la manche suivante (affiché sur le résultat).
-  socket.on('round:autoNext', (p) => startAutoNextCountdown(p.seconds, p.isLast));
+  socket.on(BT_EVENTS.ROUND_AUTO_NEXT, (p) => startAutoNextCountdown(p.seconds, p.isLast));
 
-  socket.on('player:roundLoading', (p) => {
+  socket.on(BT_EVENTS.PLAYER_ROUND_LOADING, (p) => {
     clearAutoNext();
     stopAudio();
     stopTimer();
@@ -309,7 +309,7 @@
   });
 
   // Décompte « 3·2·1 » synchronisé, puis on attend le vrai départ de l'extrait.
-  socket.on('player:countdown', () => {
+  socket.on(BT_EVENTS.PLAYER_COUNTDOWN, () => {
     clearAutoNext();
     state.awaiting = true;
     window.App.playCountdown(3, () => {
@@ -324,17 +324,17 @@
     });
   });
 
-  socket.on('player:roundStarted', (p) => enterQuestion(p.publicRound));
+  socket.on(BT_EVENTS.PLAYER_ROUND_STARTED, (p) => enterQuestion(p.publicRound));
 
   // --- Contrôles hôte côté joueur -----------------------------------------
-  socket.on('round:paused', () => {
+  socket.on(BT_EVENTS.ROUND_PAUSED, () => {
     state.paused = true;
     stopTimer();
     $$('#q-options .option').forEach((b) => { b.disabled = true; });
     $('#q-status').textContent = '⏸️ En pause…';
   });
 
-  socket.on('round:resumed', (p) => {
+  socket.on(BT_EVENTS.ROUND_RESUMED, (p) => {
     state.paused = false;
     startTimer(Math.max(1, p.remainingSeconds || 1));
     const canAnswer = state.mode === 'teams' ? !state.teamLocked : !state.answered;
@@ -344,7 +344,7 @@
     }
   });
 
-  socket.on('round:skipped', (p) => {
+  socket.on(BT_EVENTS.ROUND_SKIPPED, (p) => {
     stopTimer();
     stopAudio();
     state.paused = false;
@@ -359,7 +359,7 @@
   });
 
   // Partie annulée par l'hôte : on revient à l'écran d'attente.
-  socket.on('game:cancelled', () => {
+  socket.on(BT_EVENTS.GAME_CANCELLED, () => {
     clearAutoNext();
     stopAudio();
     stopTimer();
@@ -371,7 +371,7 @@
     $('#wait-quiz').textContent = 'Partie annulée par l\'hôte' + (state.teamName ? ` · 👥 ${state.teamName}` : '');
   });
 
-  socket.on('player:kicked', () => {
+  socket.on(BT_EVENTS.PLAYER_KICKED, () => {
     localStorage.removeItem('bt_player');
     stopTimer();
     stopAudio();
@@ -379,10 +379,10 @@
     $('#code-error').textContent = "Tu as été exclu de la partie par l'hôte.";
   });
 
-  socket.on('player:answerRejected', (p) => toast(p.reason || 'Réponse refusée.'));
+  socket.on(BT_EVENTS.PLAYER_ANSWER_REJECTED, (p) => toast(p.reason || 'Réponse refusée.'));
 
   // Mode équipes : tally de vote en direct ; un membre verrouille quand il veut.
-  socket.on('player:teamVotes', (p) => {
+  socket.on(BT_EVENTS.PLAYER_TEAM_VOTES, (p) => {
     const counts = p.counts || [];
     renderVoteCounts(counts);
     const lockBtn = $('#team-lock-btn');
@@ -410,7 +410,7 @@
     }
   });
 
-  socket.on('round:result', (p) => {
+  socket.on(BT_EVENTS.ROUND_RESULT, (p) => {
     stopTimer();
     stopAudio();
     const mine = state.playerId ? p.results[state.playerId] : null;
@@ -449,9 +449,9 @@
     renderLeaderboard($('#feedback-leaderboard'), p.leaderboard, lbId());
   });
 
-  socket.on('game:ended', (p) => showFinal(p.leaderboard));
+  socket.on(BT_EVENTS.GAME_ENDED, (p) => showFinal(p.leaderboard));
 
-  socket.on('player:error', (p) => {
+  socket.on(BT_EVENTS.PLAYER_ERROR, (p) => {
     if (p.fatal) {
       localStorage.removeItem('bt_player');
       show('screen-join');
@@ -463,7 +463,7 @@
 
   // Équipes créées en parallèle sur d'autres téléphones : MAJ du sélecteur tant
   // qu'on est encore sur l'écran de choix d'équipe (avant d'avoir rejoint).
-  socket.on('room:teams', (p) => {
+  socket.on(BT_EVENTS.ROOM_TEAMS, (p) => {
     if (state.playerId) return;
     const section = $('#team-section');
     if (section && section.style.display === 'block') renderTeamPicker(p.teams || []);
@@ -537,7 +537,7 @@
         renderTeamPicker(joinInfo.teams);
         // Observe la salle : les équipes créées sur d'autres téléphones
         // apparaissent en direct sans avoir à recharger.
-        socket.emit('player:watchRoom', { code });
+        socket.emit(BT_EVENTS.PLAYER_WATCH_ROOM, { code });
         section.style.display = 'block';
         $('#join-btn').textContent = "C'est parti !";
         $('#new-team').focus();
@@ -545,15 +545,15 @@
       }
       const team = $('#new-team').value.trim() || selectedChipName();
       if (!team) { $('#team-error').textContent = 'Choisis une équipe existante ou crée la tienne.'; return; }
-      socket.emit('player:join', { code, pseudo, team });
+      socket.emit(BT_EVENTS.PLAYER_JOIN, { code, pseudo, team });
     } else {
-      socket.emit('player:join', { code, pseudo });
+      socket.emit(BT_EVENTS.PLAYER_JOIN, { code, pseudo });
     }
   }
 
   $('#team-lock-btn').onclick = () => {
     if (state.teamLocked) return;
-    socket.emit('player:teamLock');
+    socket.emit(BT_EVENTS.PLAYER_TEAM_LOCK);
   };
   // Le tap sur ce bouton fournit le « geste » requis pour l'autoplay mobile.
   $('#player-audio-btn').onclick = () => playAudio(state.audioVideoId, state.audioStart);
@@ -570,7 +570,7 @@
     if (!raw) return;
     try {
       const { code, playerId } = JSON.parse(raw);
-      if (code && playerId) socket.emit('player:reconnect', { code, playerId });
+      if (code && playerId) socket.emit(BT_EVENTS.PLAYER_RECONNECT, { code, playerId });
     } catch (_) { localStorage.removeItem('bt_player'); }
   }
   socket.on('connect', tryReconnect);

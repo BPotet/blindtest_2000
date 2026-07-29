@@ -43,6 +43,7 @@ import {
   type AuthConfig,
 } from './auth';
 import type { PublicRound } from './types';
+import { EVENTS } from './events';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
@@ -431,7 +432,7 @@ function emitRoundResult(io: IOServer, room: Room): boolean {
       comboBonus: r.comboBonus ?? 0,
     };
   }
-  io.to(room.code).emit('round:result', {
+  io.to(room.code).emit(EVENTS.ROUND_RESULT, {
     correctIndex: result.correctIndex,
     answerLabel: result.answerLabel,
     options: result.options,
@@ -487,7 +488,7 @@ function wireSockets(
       socket.on(event, (payload: unknown) => {
         Promise.resolve(handler(payload)).catch((err) => {
           console.error(`Handler Socket.IO "${event}" a échoué :`, (err as Error)?.message ?? err);
-          socket.emit(event.startsWith('player:') ? 'player:error' : 'host:error', {
+          socket.emit(event.startsWith('player:') ? EVENTS.PLAYER_ERROR : EVENTS.HOST_ERROR, {
             message: 'Erreur serveur, réessaie.',
           });
         });
@@ -496,24 +497,24 @@ function wireSockets(
 
     // ---- Hôte ----------------------------------------------------------
 
-    onSafe('host:createRoom', async (payload: unknown) => {
+    onSafe(EVENTS.HOST_CREATE_ROOM, async (payload: unknown) => {
       const uid = socketUserId(socket, authConfig);
       if (!uid) {
-        socket.emit('host:error', { message: 'Connecte-toi pour lancer une partie.', fatal: true });
+        socket.emit(EVENTS.HOST_ERROR, { message: 'Connecte-toi pour lancer une partie.', fatal: true });
         return;
       }
       const parsed = createRoomSchema.safeParse(payload);
       if (!parsed.success) {
-        socket.emit('host:error', { message: 'Requête invalide.' });
+        socket.emit(EVENTS.HOST_ERROR, { message: 'Requête invalide.' });
         return;
       }
       const quiz = await quizRepo.get(parsed.data.quizId);
       if (!quiz) {
-        socket.emit('host:error', { message: 'Quiz introuvable.' });
+        socket.emit(EVENTS.HOST_ERROR, { message: 'Quiz introuvable.' });
         return;
       }
       if (!canAccessQuiz(quiz, uid)) {
-        socket.emit('host:error', { message: "Cette playlist ne t'appartient pas." });
+        socket.emit(EVENTS.HOST_ERROR, { message: "Cette playlist ne t'appartient pas." });
         return;
       }
       data.userId = uid;
@@ -527,7 +528,7 @@ function wireSockets(
       data.role = 'host';
       data.code = room.code;
       void socket.join(room.code);
-      socket.emit('host:roomCreated', {
+      socket.emit(EVENTS.HOST_ROOM_CREATED, {
         code: room.code,
         hostToken: room.hostToken,
         quizTitle: quiz.title,
@@ -540,22 +541,22 @@ function wireSockets(
       });
     });
 
-    socket.on('host:reconnect', (payload: unknown) => {
+    socket.on(EVENTS.HOST_RECONNECT, (payload: unknown) => {
       const parsed = hostReconnectSchema.safeParse(payload);
       if (!parsed.success) {
-        socket.emit('host:error', { message: 'Requête invalide.' });
+        socket.emit(EVENTS.HOST_ERROR, { message: 'Requête invalide.' });
         return;
       }
       const room = roomManager.get(parsed.data.code);
       if (!room || room.hostToken !== parsed.data.hostToken) {
-        socket.emit('host:error', { message: 'Salle introuvable.', fatal: true });
+        socket.emit(EVENTS.HOST_ERROR, { message: 'Salle introuvable.', fatal: true });
         return;
       }
       room.hostSocketId = socket.id;
       data.role = 'host';
       data.code = room.code;
       void socket.join(room.code);
-      socket.emit('host:snapshot', {
+      socket.emit(EVENTS.HOST_SNAPSHOT, {
         code: room.code,
         quizTitle: room.quiz.title,
         totalRounds: room.totalRounds,
@@ -569,70 +570,70 @@ function wireSockets(
       });
     });
 
-    socket.on('host:startRound', () => {
+    socket.on(EVENTS.HOST_START_ROUND, () => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
       clearRoundTimer(room.code);
       const started = room.startNextRound();
       if (!started) {
-        socket.emit('host:error', { message: 'Plus de manche à lancer.' });
+        socket.emit(EVENTS.HOST_ERROR, { message: 'Plus de manche à lancer.' });
         return;
       }
-      socket.emit('host:roundStarted', {
+      socket.emit(EVENTS.HOST_ROUND_STARTED, {
         hostRound: started.hostRound,
         answeredCount: 0,
         playerCount: room.respondentCount(),
       });
       // Les joueurs patientent pendant le chargement de la vidéo : la question
       // et le minuteur n'arrivent qu'au vrai démarrage de l'extrait.
-      socket.to(room.code).emit('player:roundLoading', {
+      socket.to(room.code).emit(EVENTS.PLAYER_ROUND_LOADING, {
         roundIndex: started.publicRound.roundIndex,
         totalRounds: started.publicRound.totalRounds,
       });
     });
 
     // L'hôte lance le décompte « 3·2·1 » -> on le diffuse aux joueurs.
-    socket.on('host:beginCountdown', () => {
+    socket.on(EVENTS.HOST_BEGIN_COUNTDOWN, () => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
-      socket.to(room.code).emit('player:countdown', { seconds: 3 });
+      socket.to(room.code).emit(EVENTS.PLAYER_COUNTDOWN, { seconds: 3 });
     });
 
     // L'hôte signale que l'extrait joue réellement -> on ouvre la manche.
-    socket.on('host:clipStarted', () => {
+    socket.on(EVENTS.HOST_CLIP_STARTED, () => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
       if (!room.markClipStarted()) return;
       const publicRound = toPublicRound(room);
-      if (publicRound) socket.to(room.code).emit('player:roundStarted', { publicRound });
+      if (publicRound) socket.to(room.code).emit(EVENTS.PLAYER_ROUND_STARTED, { publicRound });
       // Backstop serveur : la manche se clôt à sa durée + marge même si l'hôte disparaît.
       scheduleRoundTimer(room, currentRoundDurationMs(room) + ROUND_END_GRACE_MS);
     });
 
-    socket.on('host:endRound', () => {
+    socket.on(EVENTS.HOST_END_ROUND, () => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
       clearRoundTimer(room.code);
       if (!emitRoundResult(io, room)) {
-        socket.emit('host:error', { message: 'Aucune manche à clôturer.' });
+        socket.emit(EVENTS.HOST_ERROR, { message: 'Aucune manche à clôturer.' });
       }
     });
 
-    socket.on('host:endGame', () => {
+    socket.on(EVENTS.HOST_END_GAME, () => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
       clearRoundTimer(room.code);
       room.endGame();
-      io.to(room.code).emit('game:ended', { leaderboard: room.leaderboard() });
+      io.to(room.code).emit(EVENTS.GAME_ENDED, { leaderboard: room.leaderboard() });
     });
 
     // Annule la partie en cours et renvoie tout le monde au lobby (scores remis à zéro).
-    socket.on('host:cancelGame', () => {
+    socket.on(EVENTS.HOST_CANCEL_GAME, () => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
       clearRoundTimer(room.code);
       if (!room.cancelGame()) return;
-      io.to(room.code).emit('game:cancelled', {
+      io.to(room.code).emit(EVENTS.GAME_CANCELLED, {
         quizTitle: room.quiz.title,
         players: room.listPlayers(),
         teams: room.listTeams(),
@@ -641,32 +642,32 @@ function wireSockets(
 
     // ---- Contrôles hôte : pause, reprise, passer, exclure ---------------
 
-    socket.on('host:pauseRound', () => {
+    socket.on(EVENTS.HOST_PAUSE_ROUND, () => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
       if (room.pause()) {
         clearRoundTimer(room.code); // on gèle aussi le backstop serveur
-        socket.to(room.code).emit('round:paused');
+        socket.to(room.code).emit(EVENTS.ROUND_PAUSED);
       }
     });
 
-    socket.on('host:resumeRound', (payload: unknown) => {
+    socket.on(EVENTS.HOST_RESUME_ROUND, (payload: unknown) => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
       const parsed = resumeSchema.safeParse(payload);
       const remainingSeconds = parsed.success ? Math.round(parsed.data.remainingSeconds) : 0;
       if (room.resume()) {
         scheduleRoundTimer(room, remainingSeconds * 1000 + ROUND_END_GRACE_MS);
-        socket.to(room.code).emit('round:resumed', { remainingSeconds });
+        socket.to(room.code).emit(EVENTS.ROUND_RESUMED, { remainingSeconds });
       }
     });
 
-    socket.on('host:skipRound', () => {
+    socket.on(EVENTS.HOST_SKIP_ROUND, () => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
       clearRoundTimer(room.code);
       if (room.skipRound()) {
-        io.to(room.code).emit('round:skipped', {
+        io.to(room.code).emit(EVENTS.ROUND_SKIPPED, {
           leaderboard: room.leaderboard(),
           isLastRound: room.isLastRound(),
         });
@@ -675,25 +676,25 @@ function wireSockets(
 
     // Mode auto : relaie aux joueurs le décompte avant l'enchaînement de la
     // manche suivante (ils voient le temps restant sur l'écran de résultat).
-    socket.on('host:autoNext', (payload: unknown) => {
+    socket.on(EVENTS.HOST_AUTO_NEXT, (payload: unknown) => {
       if (data.role !== 'host' || !data.code) return;
       const room = roomManager.get(data.code);
       if (!room) return;
       const parsed = autoNextSchema.safeParse(payload);
       if (!parsed.success) return;
-      socket.to(room.code).emit('round:autoNext', {
+      socket.to(room.code).emit(EVENTS.ROUND_AUTO_NEXT, {
         seconds: parsed.data.seconds,
         isLast: Boolean(parsed.data.isLast),
       });
     });
 
-    socket.on('host:kickPlayer', (payload: unknown) => {
+    socket.on(EVENTS.HOST_KICK_PLAYER, (payload: unknown) => {
       const room = getHostRoom(socket, roomManager);
       if (!room) return;
       const parsed = kickSchema.safeParse(payload);
       if (!parsed.success) return;
       const socketId = room.removePlayer(parsed.data.playerId);
-      if (socketId) io.to(socketId).emit('player:kicked');
+      if (socketId) io.to(socketId).emit(EVENTS.PLAYER_KICKED);
       broadcastPlayers(io, room);
     });
 
@@ -703,29 +704,29 @@ function wireSockets(
     // apparaître en direct les équipes créées sur d'autres téléphones. On le met
     // dans une room « lobby » dédiée : il reçoit les MAJ d'équipes sans être
     // exposé aux évènements de jeu (roundLoading, roundStarted…).
-    socket.on('player:watchRoom', (payload: unknown) => {
+    socket.on(EVENTS.PLAYER_WATCH_ROOM, (payload: unknown) => {
       const parsed = watchRoomSchema.safeParse(payload);
       if (!parsed.success) return;
       const room = roomManager.get(parsed.data.code);
       if (!room) return;
       void socket.join(lobbyRoom(room.code));
-      socket.emit('room:teams', { teams: room.listTeams() });
+      socket.emit(EVENTS.ROOM_TEAMS, { teams: room.listTeams() });
     });
 
-    socket.on('player:join', (payload: unknown) => {
+    socket.on(EVENTS.PLAYER_JOIN, (payload: unknown) => {
       const parsed = joinRoomSchema.safeParse(payload);
       if (!parsed.success) {
-        socket.emit('player:error', { message: 'Code ou pseudo invalide.' });
+        socket.emit(EVENTS.PLAYER_ERROR, { message: 'Code ou pseudo invalide.' });
         return;
       }
       const room = roomManager.get(parsed.data.code);
       if (!room) {
-        socket.emit('player:error', { message: "Cette salle n'existe pas.", fatal: true });
+        socket.emit(EVENTS.PLAYER_ERROR, { message: "Cette salle n'existe pas.", fatal: true });
         return;
       }
       const outcome = room.addPlayer(parsed.data.pseudo, socket.id, parsed.data.team);
       if ('error' in outcome) {
-        socket.emit('player:error', { message: outcome.error });
+        socket.emit(EVENTS.PLAYER_ERROR, { message: outcome.error });
         return;
       }
       data.role = 'player';
@@ -733,7 +734,7 @@ function wireSockets(
       data.playerId = outcome.player.id;
       void socket.join(room.code);
       void socket.leave(lobbyRoom(room.code)); // il devient joueur : plus besoin d'observer
-      socket.emit('player:joined', {
+      socket.emit(EVENTS.PLAYER_JOINED, {
         playerId: outcome.player.id,
         code: room.code,
         quizTitle: room.quiz.title,
@@ -747,27 +748,27 @@ function wireSockets(
       broadcastPlayers(io, room);
     });
 
-    socket.on('player:reconnect', (payload: unknown) => {
+    socket.on(EVENTS.PLAYER_RECONNECT, (payload: unknown) => {
       const parsed = reconnectSchema.safeParse(payload);
       if (!parsed.success) {
-        socket.emit('player:error', { message: 'Requête invalide.' });
+        socket.emit(EVENTS.PLAYER_ERROR, { message: 'Requête invalide.' });
         return;
       }
       const room = roomManager.get(parsed.data.code);
       if (!room) {
-        socket.emit('player:error', { message: "Cette salle n'existe plus.", fatal: true });
+        socket.emit(EVENTS.PLAYER_ERROR, { message: "Cette salle n'existe plus.", fatal: true });
         return;
       }
       const view = room.reconnectPlayer(parsed.data.playerId, socket.id);
       if (!view) {
-        socket.emit('player:error', { message: 'Session de joueur expirée.', fatal: true });
+        socket.emit(EVENTS.PLAYER_ERROR, { message: 'Session de joueur expirée.', fatal: true });
         return;
       }
       data.role = 'player';
       data.code = room.code;
       data.playerId = view.id;
       void socket.join(room.code);
-      socket.emit('player:snapshot', {
+      socket.emit(EVENTS.PLAYER_SNAPSHOT, {
         playerId: view.id,
         code: room.code,
         quizTitle: room.quiz.title,
@@ -787,44 +788,44 @@ function wireSockets(
       broadcastPlayers(io, room);
     });
 
-    socket.on('player:answer', (payload: unknown) => {
+    socket.on(EVENTS.PLAYER_ANSWER, (payload: unknown) => {
       const parsed = answerSchema.safeParse(payload);
       if (!parsed.success || !data.code || !data.playerId) {
-        socket.emit('player:error', { message: 'Réponse invalide.' });
+        socket.emit(EVENTS.PLAYER_ERROR, { message: 'Réponse invalide.' });
         return;
       }
       const room = roomManager.get(data.code);
       if (!room) return;
       const outcome = room.submitAnswer(data.playerId, parsed.data.optionIndex);
       if (!outcome.accepted) {
-        socket.emit('player:answerRejected', { reason: outcome.reason });
+        socket.emit(EVENTS.PLAYER_ANSWER_REJECTED, { reason: outcome.reason });
         return;
       }
-      socket.emit('player:answerAccepted', { optionIndex: parsed.data.optionIndex });
+      socket.emit(EVENTS.PLAYER_ANSWER_ACCEPTED, { optionIndex: parsed.data.optionIndex });
       // Mode équipes : diffuse le tally de vote à toute l'équipe (et l'état de
       // verrouillage : l'équipe se verrouille à la majorité ou quand tous ont voté).
       if (room.mode === 'teams' && outcome.teamId) {
         const voteState = room.getTeamVoteState(outcome.teamId);
         for (const sid of room.getTeamMemberSocketIds(outcome.teamId)) {
-          io.to(sid).emit('player:teamVotes', voteState);
+          io.to(sid).emit(EVENTS.PLAYER_TEAM_VOTES, voteState);
         }
       }
       notifyHostAnswerCount(io, room);
     });
 
     // Mode équipes : un membre verrouille la réponse (la plus votée).
-    socket.on('player:teamLock', () => {
+    socket.on(EVENTS.PLAYER_TEAM_LOCK, () => {
       if (!data.code || !data.playerId) return;
       const room = roomManager.get(data.code);
       if (!room || room.mode !== 'teams') return;
       const res = room.lockTeam(data.playerId);
       if (!res.locked) {
-        socket.emit('player:answerRejected', { reason: res.reason });
+        socket.emit(EVENTS.PLAYER_ANSWER_REJECTED, { reason: res.reason });
         return;
       }
       const voteState = room.getTeamVoteState(res.teamId);
       for (const sid of room.getTeamMemberSocketIds(res.teamId)) {
-        io.to(sid).emit('player:teamVotes', voteState);
+        io.to(sid).emit(EVENTS.PLAYER_TEAM_VOTES, voteState);
       }
       notifyHostAnswerCount(io, room);
     });
@@ -872,12 +873,12 @@ function socketUserId(socket: Socket, authConfig: AuthConfig): string | null {
 function getHostRoom(socket: Socket, roomManager: RoomManager): Room | null {
   const data = socket.data as SocketData;
   if (data.role !== 'host' || !data.code) {
-    socket.emit('host:error', { message: 'Action réservée à l\'hôte.' });
+    socket.emit(EVENTS.HOST_ERROR, { message: 'Action réservée à l\'hôte.' });
     return null;
   }
   const room = roomManager.get(data.code);
   if (!room) {
-    socket.emit('host:error', { message: 'Salle introuvable.', fatal: true });
+    socket.emit(EVENTS.HOST_ERROR, { message: 'Salle introuvable.', fatal: true });
     return null;
   }
   return room;
@@ -890,14 +891,14 @@ function lobbyRoom(code: string): string {
 
 function broadcastPlayers(io: IOServer, room: Room): void {
   const teams = room.listTeams();
-  io.to(room.code).emit('room:players', { players: room.listPlayers(), teams });
+  io.to(room.code).emit(EVENTS.ROOM_PLAYERS, { players: room.listPlayers(), teams });
   // Les joueurs encore sur l'écran de choix d'équipe ne voient que les équipes.
-  io.to(lobbyRoom(room.code)).emit('room:teams', { teams });
+  io.to(lobbyRoom(room.code)).emit(EVENTS.ROOM_TEAMS, { teams });
 }
 
 function notifyHostAnswerCount(io: IOServer, room: Room): void {
   if (!room.hostSocketId) return;
-  io.to(room.hostSocketId).emit('host:answerUpdate', {
+  io.to(room.hostSocketId).emit(EVENTS.HOST_ANSWER_UPDATE, {
     answered: room.answeredUnitCount(),
     playerCount: room.respondentCount(),
   });
