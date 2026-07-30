@@ -220,8 +220,17 @@
 
   initMute();
 
+  // Indice progressif : floute l'image au début de la manche, la dé-floute au fil
+  // du minuteur (blur proportionnel au temps restant). L'image démarre nette à 0.
+  const CLUE_MAX_BLUR = 20;
+  function applyClueBlur(img, remaining, total) {
+    if (!img || img.hidden) return;
+    const ratio = total > 0 ? Math.max(0, Math.min(1, remaining / total)) : 0;
+    img.style.filter = ratio > 0 ? `blur(${(CLUE_MAX_BLUR * ratio).toFixed(1)}px)` : 'none';
+  }
+
   window.App = {
     $, $$, show, escapeHtml, OPTION_SHAPES, toast, renderLeaderboard, renderDistribution,
-    Sound, playCountdown, confetti, renderPodium, renderAwards,
+    Sound, playCountdown, confetti, renderPodium, renderAwards, applyClueBlur,
   };
 })();

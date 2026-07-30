@@ -132,6 +132,7 @@
     if (t) t.textContent = Math.max(0, remaining);
     const bar = $('#q-bar');
     if (bar) bar.style.width = `${Math.max(0, (remaining / total) * 100)}%`;
+    window.App.applyClueBlur($('#q-image'), remaining, total);
   }
   function stopTimer() { clearInterval(state.timer); }
   function onTimeout() {
@@ -233,7 +234,7 @@
     $('#q-text').textContent = pr.question;
     // Indice visuel (image) si la manche en a un.
     const qImg = $('#q-image');
-    if (pr.imageUrl) { qImg.src = pr.imageUrl; qImg.hidden = false; }
+    if (pr.imageUrl) { qImg.src = pr.imageUrl; qImg.hidden = false; qImg.style.filter = 'blur(20px)'; }
     else { qImg.hidden = true; qImg.removeAttribute('src'); }
     $('#q-status').textContent = state.mode === 'teams' ? '🗳️ Votez pour votre équipe !' : 'À toi de jouer !';
     const lockBtn = $('#team-lock-btn');

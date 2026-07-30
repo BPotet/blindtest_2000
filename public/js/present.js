@@ -67,6 +67,7 @@
     const t = Math.max(0, remaining);
     $('#p-round-timer').textContent = t;
     if (total > 0) $('#p-round-bar').style.width = `${Math.max(0, (t / total) * 100)}%`;
+    window.App.applyClueBlur($('#p-round-image'), remaining, total);
   }
 
   function setPaused(paused) {
@@ -109,7 +110,7 @@
       // Indice visuel : on affiche l'image et on masque le visualiseur audio.
       const pImg = $('#p-round-image');
       if (m.imageUrl) {
-        pImg.src = m.imageUrl; pImg.hidden = false;
+        pImg.src = m.imageUrl; pImg.hidden = false; pImg.style.filter = 'blur(20px)';
         $('#p-audio-stage').style.display = 'none';
       } else {
         pImg.hidden = true; pImg.removeAttribute('src');

@@ -232,6 +232,7 @@
   function updateTimer(remaining, total) {
     $('#round-timer').textContent = Math.max(0, remaining);
     $('#round-bar').style.width = `${Math.max(0, (remaining / total) * 100)}%`;
+    window.App.applyClueBlur($('#round-image'), remaining, total);
     presentTimer(remaining, total);
   }
 
@@ -700,7 +701,7 @@
     const imageUrl = !hasClip && p.hostRound.imageUrl ? p.hostRound.imageUrl : '';
     const imgEl = $('#round-image');
     if (imgEl) {
-      if (imageUrl) { imgEl.src = imageUrl; imgEl.hidden = false; }
+      if (imageUrl) { imgEl.src = imageUrl; imgEl.hidden = false; imgEl.style.filter = 'blur(20px)'; }
       else { imgEl.hidden = true; imgEl.removeAttribute('src'); }
     }
     // Mode auto : la vidéo est masquée (l'écran de l'hôte est projeté et l'hôte
