@@ -7,8 +7,10 @@ export type ClipSource = 'youtube';
 /** Une manche telle que stockée côté serveur (contient la réponse — jamais envoyée aux joueurs). */
 export interface Round {
   id: string;
-  /** ID de la vidéo YouTube (pas l'URL complète). */
+  /** ID de la vidéo YouTube (pas l'URL complète). Vide si pas de vidéo. */
   youtubeId: string;
+  /** URL d'une image servant d'indice visuel (alternative à la vidéo). Absent/vide sinon. */
+  imageUrl?: string;
   /** Seconde de départ de l'extrait dans la vidéo. */
   startSeconds: number;
   /** Durée de l'extrait joué sur l'écran de l'hôte. */
@@ -42,6 +44,9 @@ export interface PublicRound {
    *  (audio uniquement, vidéo masquée). Absent sinon (aucune fuite). */
   audioYoutubeId?: string;
   audioStartSeconds?: number;
+  /** Indice visuel : URL d'image à afficher pendant la manche (aucune fuite —
+   *  c'est la question, pas la réponse). Absent si la manche n'a pas d'image. */
+  imageUrl?: string;
 }
 
 /** La vue d'une manche envoyée à l'HÔTE — contient de quoi jouer et révéler. */

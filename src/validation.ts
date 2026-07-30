@@ -95,6 +95,19 @@ const roundInputSchema = z.object({
       }
       return id;
     }),
+  // Facultatif : indice visuel (URL d'image), alternative à la vidéo.
+  image: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      const v = (value ?? '').trim();
+      if (!v) return '';
+      if (v.length > 500 || !/^https?:\/\/.+/i.test(v)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "URL d'image invalide (http(s) attendu)." });
+        return z.NEVER;
+      }
+      return v;
+    }),
   startSeconds: z.number().int().min(0).max(36000),
   durationSeconds: z.number().int().min(5).max(60),
   question: z.string().min(1).max(200),

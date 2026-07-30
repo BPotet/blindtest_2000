@@ -231,6 +231,10 @@
       streakBadge.style.display = 'none';
     }
     $('#q-text').textContent = pr.question;
+    // Indice visuel (image) si la manche en a un.
+    const qImg = $('#q-image');
+    if (pr.imageUrl) { qImg.src = pr.imageUrl; qImg.hidden = false; }
+    else { qImg.hidden = true; qImg.removeAttribute('src'); }
     $('#q-status').textContent = state.mode === 'teams' ? '🗳️ Votez pour votre équipe !' : 'À toi de jouer !';
     const lockBtn = $('#team-lock-btn');
     if (state.mode === 'teams') {

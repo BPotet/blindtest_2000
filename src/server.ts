@@ -363,6 +363,7 @@ export function buildServer(
 function mapValidatedRounds(rounds: CreateQuizInput['rounds']) {
   return rounds.map((r) => ({
     youtubeId: r.youtube,
+    imageUrl: r.image,
     startSeconds: r.startSeconds,
     durationSeconds: r.durationSeconds,
     question: r.question,
@@ -396,10 +397,12 @@ function toPublicRound(room: Room): PublicRound | null {
     durationSeconds: round.durationSeconds,
   };
   // Son sur les téléphones (opt-in) : on transmet de quoi jouer l'audio.
-  if (room.playerAudio) {
+  if (room.playerAudio && round.youtubeId) {
     pr.audioYoutubeId = round.youtubeId;
     pr.audioStartSeconds = round.startSeconds;
   }
+  // Image = indice visuel (la question, pas la réponse) : toujours transmise.
+  if (round.imageUrl) pr.imageUrl = round.imageUrl;
   return pr;
 }
 

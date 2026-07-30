@@ -370,6 +370,13 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); animation: reveal-pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .reveal-thumb--sm { width: min(220px, 60%); margin-bottom: 10px; }
+
+/* Indice visuel (image) affiché pendant une manche « image ». */
+.round-media-img {
+  display: block; max-width: 100%; max-height: 44vh; margin: 0 auto 12px;
+  border-radius: var(--radius-sm); object-fit: contain;
+  background: var(--surface-2); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
 @keyframes reveal-pop { from { opacity: 0; transform: scale(0.8) rotate(-2deg); } to { opacity: 1; transform: none; } }
 
 /* « Main la plus rapide » de la manche (écran public). */

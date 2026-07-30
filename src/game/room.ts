@@ -406,6 +406,7 @@ export class Room {
       options: [...round.options],
       durationSeconds: round.durationSeconds,
     };
+    if (round.imageUrl) publicRound.imageUrl = round.imageUrl;
     const hostRound: HostRound = {
       ...publicRound,
       youtubeId: round.youtubeId,

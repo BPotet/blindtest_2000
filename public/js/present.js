@@ -106,6 +106,15 @@
       $('#p-round-bar').style.width = '100%';
       lastRoundOptions = m.options || [];
       roundHasClip = m.hasClip !== false;
+      // Indice visuel : on affiche l'image et on masque le visualiseur audio.
+      const pImg = $('#p-round-image');
+      if (m.imageUrl) {
+        pImg.src = m.imageUrl; pImg.hidden = false;
+        $('#p-audio-stage').style.display = 'none';
+      } else {
+        pImg.hidden = true; pImg.removeAttribute('src');
+        $('#p-audio-stage').style.display = '';
+      }
       if (m.started) {
         $('#p-audio-label').textContent = roundHasClip ? '🎵 À l\'écoute…' : '❓ À vous de jouer !';
         renderOptions(lastRoundOptions);

@@ -32,3 +32,23 @@ describe('createQuizSchema — lien YouTube facultatif', () => {
     ).toThrow();
   });
 });
+
+describe('createQuizSchema — image facultative', () => {
+  it('accepte une URL d\'image http(s)', () => {
+    const p = createQuizSchema.parse({
+      title: 'T',
+      rounds: [{ ...baseRound, image: 'https://exemple.com/photo.jpg' }],
+    });
+    expect(p.rounds[0].image).toBe('https://exemple.com/photo.jpg');
+  });
+
+  it('sans image -> chaîne vide', () => {
+    expect(createQuizSchema.parse({ title: 'T', rounds: [{ ...baseRound }] }).rounds[0].image).toBe('');
+  });
+
+  it('refuse une URL d\'image non http(s)', () => {
+    expect(() =>
+      createQuizSchema.parse({ title: 'T', rounds: [{ ...baseRound, image: 'javascript:alert(1)' }] }),
+    ).toThrow();
+  });
+});

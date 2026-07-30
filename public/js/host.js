@@ -390,6 +390,8 @@
       `<input class="r-yt" style="flex:1" placeholder="Lien/ID YouTube, ou vide pour un quiz sans son" value="${escapeHtml(d?.youtube ?? '')}" />` +
       `<button type="button" class="btn btn--ghost btn--sm r-preview" title="Écouter l'extrait pour te rappeler le morceau">▶️ Aperçu</button>` +
       `</div>` +
+      `<label>Image <span class="muted">(URL, facultatif — indice visuel à la place de la vidéo)</span></label>` +
+      `<input class="r-img" placeholder="https://.../image.jpg" value="${escapeHtml(d?.imageUrl ?? '')}" />` +
       `<div class="field-row">` +
       `<div style="flex:1"><label>Départ (s)</label><input class="r-start" type="number" min="0" value="${d?.startSeconds ?? 0}" /></div>` +
       `<div style="flex:1"><label>Durée (s)</label><input class="r-dur" type="number" min="5" max="60" value="${d?.durationSeconds ?? 20}" /></div></div>` +
@@ -580,6 +582,7 @@
       const { options, correctIndex } = BT_quizForm.mapOptions(rows);
       rounds.push({
         youtube: $('.r-yt', block).value.trim(),
+        image: $('.r-img', block).value.trim(),
         startSeconds: Number($('.r-start', block).value) || 0,
         durationSeconds: Number($('.r-dur', block).value) || 20,
         question: $('.r-q', block).value.trim(),
@@ -598,6 +601,9 @@
       // rempli, il doit être valide.
       if (r.youtube && !BT_quizForm.parseYtId(r.youtube)) {
         toast(`Manche ${num} : lien YouTube invalide (laisse vide pour une question sans musique).`); return;
+      }
+      if (r.image && !/^https?:\/\/.+/i.test(r.image)) {
+        toast(`Manche ${num} : URL d'image invalide (doit commencer par http:// ou https://).`); return;
       }
       if (r.options.length < 2) { toast(`Manche ${num} : ajoute au moins 2 propositions.`); return; }
       if (!r.question) { toast(`Manche ${num} : écris la question posée.`); return; }
@@ -690,6 +696,13 @@
     const hasClip = !!p.hostRound.youtubeId;
     const ytWrap = $('#round-yt-wrap');
     if (ytWrap) ytWrap.style.display = hasClip ? '' : 'none';
+    // Indice visuel (image) : affiché à la place de la vidéo, s'il y en a un.
+    const imageUrl = !hasClip && p.hostRound.imageUrl ? p.hostRound.imageUrl : '';
+    const imgEl = $('#round-image');
+    if (imgEl) {
+      if (imageUrl) { imgEl.src = imageUrl; imgEl.hidden = false; }
+      else { imgEl.hidden = true; imgEl.removeAttribute('src'); }
+    }
     // Mode auto : la vidéo est masquée (l'écran de l'hôte est projeté et l'hôte
     // joue), les contrôles manuels disparaissent (tout s'enchaîne tout seul).
     $('#yt-cover').style.display = state.autoplay && hasClip ? 'flex' : 'none';
@@ -708,6 +721,7 @@
       playerCount: p.playerCount,
       mode: state.roomMode,
       hasClip, // manche avec extrait (audio) ou question « quiz pur »
+      imageUrl, // indice visuel éventuel (affiché sur l'écran public)
       started: false, // propositions dévoilées seulement à onClipStarted
     });
     if (p.hostRound.roundIndex === 0) {
