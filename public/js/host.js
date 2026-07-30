@@ -774,6 +774,7 @@
         fastest: p.fastest,
         slowest: p.slowest,
         atBuzzer: p.atBuzzer,
+        slowestNoAnswer: p.slowestNoAnswer,
         soloCorrect: p.soloCorrect,
         mode: state.roomMode,
       });

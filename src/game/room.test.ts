@@ -93,7 +93,7 @@ describe('Room — déroulé et scoring', () => {
     expect(perPlayer.get(slow.player.id)!.pointsAwarded).toBeGreaterThanOrEqual(BASE_POINTS);
   });
 
-  it('désigne la « main la plus rapide » parmi les bonnes réponses', () => {
+  it('main la plus rapide / lente = premier / dernier à répondre, MÊME faux', () => {
     const room = new Room(makeQuiz(), 'ABCDE');
     const fast = room.addPlayer('Fast', 's1');
     const slow = room.addPlayer('Slow', 's2');
@@ -102,24 +102,40 @@ describe('Room — déroulé et scoring', () => {
 
     room.startNextRound();
     room.markClipStarted(1000);
-    room.submitAnswer(wrong.player.id, 0, 1200); // faux, même très rapide -> ignoré
-    room.submitAnswer(slow.player.id, 1, 9000); // bonne, lente
-    room.submitAnswer(fast.player.id, 1, 2000); // bonne, +1000ms -> la plus rapide
+    room.submitAnswer(wrong.player.id, 0, 1200); // FAUX mais dégainé en premier (+200ms)
+    room.submitAnswer(fast.player.id, 1, 2000); // bonne, +1000ms
+    room.submitAnswer(slow.player.id, 1, 9000); // bonne, +8000ms (la plus lente)
 
-    const result = room.endRound();
-    expect(result!.fastest).toEqual({ name: 'Fast', elapsedMs: 1000 });
-    // Le payoff : l'ID vidéo de la manche est dévoilé au résultat.
-    expect(result!.youtubeId).toBe('aaaaaaaaaaa');
+    const r = room.endRound()!;
+    expect(r.fastest).toEqual({ name: 'Wrong', elapsedMs: 200 }); // faux, mais le plus rapide
+    expect(r.slowest).toEqual({ name: 'Slow', elapsedMs: 8000 });
+    expect(r.slowestNoAnswer).toBe(false);
+    expect(r.youtubeId).toBe('aaaaaaaaaaa'); // payoff : l'ID vidéo est dévoilé
   });
 
-  it('aucune « main la plus rapide » si personne ne trouve', () => {
+  it('une réponse fausse compte quand même comme une main', () => {
     const room = new Room(makeQuiz(), 'ABCDE');
     const a = room.addPlayer('A', 's1');
     if (!('player' in a)) throw new Error();
     room.startNextRound();
     room.markClipStarted(1000);
-    room.submitAnswer(a.player.id, 0, 1500); // faux (bonne = index 1)
-    expect(room.endRound()!.fastest).toBeNull();
+    room.submitAnswer(a.player.id, 0, 1500); // faux (bonne = index 1), +500ms
+    expect(room.endRound()!.fastest).toEqual({ name: 'A', elapsedMs: 500 });
+  });
+
+  it('ne pas répondre = la main la plus lente (même sans réponse)', () => {
+    const room = new Room(makeQuiz(), 'ABCDE');
+    const a = room.addPlayer('A', 's1');
+    const b = room.addPlayer('B', 's2');
+    if (!('player' in a) || !('player' in b)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(a.player.id, 1, 3000); // A répond ; B ne répond pas du tout
+    const r = room.endRound()!;
+    expect(r.fastest).toEqual({ name: 'A', elapsedMs: 3000 });
+    expect(r.slowest!.name).toBe('B'); // B a laissé filer le temps -> la plus lente
+    expect(r.slowestNoAnswer).toBe(true);
+    expect(r.atBuzzer).toBe(false);
   });
 
   it('badges de manche : main la plus lente, au buzzer, seul contre tous', () => {

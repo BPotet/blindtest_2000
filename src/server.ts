@@ -445,6 +445,7 @@ function emitRoundResult(io: IOServer, room: Room): boolean {
     fastest: result.fastest,
     slowest: result.slowest,
     atBuzzer: result.atBuzzer,
+    slowestNoAnswer: result.slowestNoAnswer,
     soloCorrect: result.soloCorrect,
     results,
     leaderboard: room.leaderboard(),

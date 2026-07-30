@@ -570,12 +570,14 @@ export class Room {
     answeredCount: number;
     correctCount: number;
     totalPlayers: number;
-    /** Unité (joueur/équipe) ayant répondu juste le plus vite — la « main la plus rapide ». */
+    /** Unité ayant répondu la première (bonne OU mauvaise) — la « main la plus rapide ». */
     fastest: { name: string; elapsedMs: number } | null;
-    /** Unité ayant répondu juste le plus lentement — la « main la plus lente ». */
+    /** Unité ayant répondu la dernière, ou n'ayant pas répondu — la « main la plus lente ». */
     slowest: { name: string; elapsedMs: number } | null;
     /** La main la plus lente a répondu dans la dernière seconde (« au buzzer »). */
     atBuzzer: boolean;
+    /** La main la plus lente n'a en fait pas répondu (a laissé filer le temps). */
+    slowestNoAnswer: boolean;
     /** Nom de l'unité si elle est la SEULE à avoir trouvé (« seul contre tous »). */
     soloCorrect: string | null;
     perPlayer: Map<string, PlayerRoundResult>;
@@ -590,9 +592,12 @@ export class Room {
     let answeredCount = 0;
     let correctCount = 0;
 
-    // Toutes les BONNES réponses de la manche (nom + temps serveur) : on en déduit
-    // ensuite la main la plus rapide / la plus lente et « seul contre tous ».
-    const correctHands: Array<{ name: string; elapsedMs: number }> = [];
+    // Toutes les réponses de la manche (bonnes OU mauvaises) + les unités qui n'ont
+    // PAS répondu. On en déduit la main la plus rapide / la plus lente (réflexes,
+    // pas justesse ; ne pas répondre = la plus lente) et « seul contre tous » (justesse).
+    const allHands: Array<{ name: string; elapsedMs: number }> = [];
+    const nonAnswerers: string[] = [];
+    const correctNames: string[] = [];
     // Récupère/crée la fiche de stats cumulées d'une unité (par nom, unique dans la salle).
     const stat = (name: string): UnitStats => {
       let s = this.gameStats.get(name);
@@ -629,10 +634,12 @@ export class Room {
         if (correct) {
           team.streak += 1;
           comboBonus = this.comboEnabled ? streakBonus(team.streak) : 0;
-          if (final) correctHands.push({ name: team.name, elapsedMs: final.elapsedMs });
+          correctNames.push(team.name);
         } else {
           team.streak = 0;
         }
+        if (final) allHands.push({ name: team.name, elapsedMs: final.elapsedMs });
+        else nonAnswerers.push(team.name);
         const ts = stat(team.name);
         if (final) ts.answeredRounds += 1;
         if (correct) ts.correctRounds += 1;
@@ -668,10 +675,12 @@ export class Room {
         if (correct) {
           player.streak += 1;
           comboBonus = this.comboEnabled ? streakBonus(player.streak) : 0;
-          if (ans) correctHands.push({ name: player.pseudo, elapsedMs: ans.elapsedMs });
+          correctNames.push(player.pseudo);
         } else {
           player.streak = 0;
         }
+        if (ans) allHands.push({ name: player.pseudo, elapsedMs: ans.elapsedMs });
+        else nonAnswerers.push(player.pseudo);
         const ps = stat(player.pseudo);
         if (ans) ps.answeredRounds += 1;
         if (correct) ps.correctRounds += 1;
@@ -690,17 +699,26 @@ export class Room {
       }
     }
 
-    // Mains la plus rapide / la plus lente parmi les bonnes réponses.
+    // Mains la plus rapide / la plus lente parmi TOUTES les réponses (justes ou
+    // fausses) : ce sont les réflexes qui comptent, pas la justesse.
     let fastest: { name: string; elapsedMs: number } | null = null;
     let slowest: { name: string; elapsedMs: number } | null = null;
-    for (const c of correctHands) {
-      if (!fastest || c.elapsedMs < fastest.elapsedMs) fastest = c;
-      if (!slowest || c.elapsedMs > slowest.elapsedMs) slowest = c;
+    for (const h of allHands) {
+      if (!fastest || h.elapsedMs < fastest.elapsedMs) fastest = h;
+      if (!slowest || h.elapsedMs > slowest.elapsedMs) slowest = h;
     }
-    // « Seul contre tous » : une seule unité a trouvé.
-    const soloCorrect = correctHands.length === 1 ? correctHands[0].name : null;
-    // « Au buzzer » : la main la plus lente a répondu dans la dernière seconde.
-    const atBuzzer = slowest !== null && slowest.elapsedMs >= answerWindowMs - 1000;
+    // « Même si tu ne réponds pas, ça compte » : ne pas répondre = avoir laissé
+    // filer tout le temps -> tu deviens la main la plus lente (dès que quelqu'un
+    // d'autre a, lui, répondu).
+    let slowestNoAnswer = false;
+    if (allHands.length > 0 && nonAnswerers.length > 0) {
+      slowest = { name: nonAnswerers[0], elapsedMs: answerWindowMs };
+      slowestNoAnswer = true;
+    }
+    // « Seul contre tous » : une seule unité a trouvé (la justesse compte ici).
+    const soloCorrect = correctNames.length === 1 ? correctNames[0] : null;
+    // « Au buzzer » : la main la plus lente a bien répondu, dans la dernière seconde.
+    const atBuzzer = slowest !== null && !slowestNoAnswer && slowest.elapsedMs >= answerWindowMs - 1000;
 
     // Cumule les victoires de manche pour le palmarès de fin.
     if (fastest) stat(fastest.name).fastestWins += 1;
@@ -729,6 +747,7 @@ export class Room {
       fastest,
       slowest,
       atBuzzer,
+      slowestNoAnswer,
       soloCorrect,
       perPlayer,
     };

@@ -159,11 +159,12 @@
       } else {
         const badges = [];
         if (m.fastest && m.fastest.name) badges.push(`⚡ Main la plus rapide : ${m.fastest.name}`);
-        if (m.soloCorrect) {
-          badges.push(`🧠 Seul contre tous : ${m.soloCorrect}`);
-        } else if (m.slowest && m.slowest.name && (!m.fastest || m.slowest.name !== m.fastest.name)) {
-          badges.push(m.atBuzzer ? `🍀 Au buzzer : ${m.slowest.name}` : `🐢 Main la plus lente : ${m.slowest.name}`);
+        if (m.slowest && m.slowest.name && (!m.fastest || m.slowest.name !== m.fastest.name)) {
+          if (m.slowestNoAnswer) badges.push(`😴 N'a pas répondu : ${m.slowest.name}`);
+          else if (m.atBuzzer) badges.push(`🍀 Au buzzer : ${m.slowest.name}`);
+          else badges.push(`🐢 Main la plus lente : ${m.slowest.name}`);
         }
+        if (m.soloCorrect) badges.push(`🧠 Seul contre tous : ${m.soloCorrect}`);
         if (badges.length) {
           fast.innerHTML = badges.map((b) => `<span class="fastest-badge">${escapeHtml(b)}</span>`).join('');
           fast.hidden = false;
