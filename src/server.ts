@@ -946,5 +946,8 @@ function notifyHostAnswerCount(io: IOServer, room: Room): void {
   io.to(room.hostSocketId).emit(EVENTS.HOST_ANSWER_UPDATE, {
     answered: room.answeredUnitCount(),
     playerCount: room.respondentCount(),
+    // Répartition en direct : l'hôte voit où penchent les votes (les joueurs, eux,
+    // ne la reçoivent pas -> pas d'effet de troupeau).
+    distribution: room.liveDistribution(),
   });
 }

@@ -676,6 +676,7 @@
     $('#pause-round').textContent = '⏸️ Pause';
     $('#pause-round').disabled = false;
     $('#round-status').textContent = '';
+    $('#round-live-dist').innerHTML = '';
     show('screen-round');
     // Mode auto : la vidéo est masquée (l'écran de l'hôte est projeté et l'hôte
     // joue), les contrôles manuels disparaissent (tout s'enchaîne tout seul).
@@ -710,6 +711,14 @@
     $('#answer-count').textContent = `${p.answered} / ${p.playerCount}`;
     presentAnswers(p.answered, p.playerCount);
     maybeAutoSkip(p.answered, p.playerCount);
+    // Votes en direct sur l'écran de l'hôte (pour voir si les joueurs galèrent).
+    if (p.distribution && state.round) {
+      window.App.renderDistribution($('#round-live-dist'), {
+        options: state.round.options,
+        distribution: p.distribution,
+        correctIndex: state.round.correctIndex,
+      });
+    }
   });
 
   // Mode auto : dès que tout le monde a répondu, on révèle après 3 s sans

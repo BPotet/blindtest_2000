@@ -210,6 +210,21 @@ describe('Room — déroulé et scoring', () => {
     expect(room.replayRound()).toBeNull(); // au lobby
   });
 
+  it('répartition en direct des votes (pour l\'écran de l\'hôte)', () => {
+    const room = new Room(makeQuiz(), 'ABCDE'); // 3 options
+    const a = room.addPlayer('A', 's1');
+    const b = room.addPlayer('B', 's2');
+    const c = room.addPlayer('C', 's3');
+    if (!('player' in a) || !('player' in b) || !('player' in c)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(0);
+    expect(room.liveDistribution()).toEqual([0, 0, 0]);
+    room.submitAnswer(a.player.id, 1, 100);
+    room.submitAnswer(b.player.id, 1, 200);
+    room.submitAnswer(c.player.id, 0, 300);
+    expect(room.liveDistribution()).toEqual([1, 2, 0]);
+  });
+
   it('« seul contre tous » quand une seule unité trouve', () => {
     const room = new Room(makeQuiz(), 'ABCDE');
     const alice = room.addPlayer('Alice', 's1');

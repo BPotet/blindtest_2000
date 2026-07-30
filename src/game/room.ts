@@ -278,6 +278,24 @@ export class Room {
     return this.mode === 'teams' ? this.teamLock.size : this.answers.size;
   }
 
+  /**
+   * Répartition EN DIRECT des réponses reçues jusqu'ici (index = proposition),
+   * pour que l'hôte voie où penchent les joueurs pendant que l'extrait joue.
+   * En équipes : réponses verrouillées par équipe ; en solo : réponses des joueurs.
+   */
+  liveDistribution(): number[] {
+    const round = this.quiz.rounds[this.currentRoundIndex];
+    if (!round) return [];
+    const dist = new Array<number>(round.options.length).fill(0);
+    const bump = (i: number): void => { if (i >= 0 && i < dist.length) dist[i] += 1; };
+    if (this.mode === 'teams') {
+      for (const lock of this.teamLock.values()) bump(lock.optionIndex);
+    } else {
+      for (const a of this.answers.values()) bump(a.optionIndex);
+    }
+    return dist;
+  }
+
   /** Nombre total d'unités pouvant répondre (équipes en mode équipes, sinon joueurs). */
   respondentCount(): number {
     return this.mode === 'teams' ? this.teams.size : this.players.size;
