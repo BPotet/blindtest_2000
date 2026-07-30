@@ -14,6 +14,7 @@
   const channel = new BroadcastChannel('bt-present');
   let mode = 'solo';
   let lastRoundOptions = []; // propositions de la manche, dévoilées seulement au vrai départ
+  let roundHasClip = true; // manche avec extrait audio, ou question « quiz pur »
 
   function renderPlayers(players, teams) {
     const box = $('#p-lobby-players');
@@ -104,12 +105,13 @@
       $('#p-round-timer').textContent = '…';
       $('#p-round-bar').style.width = '100%';
       lastRoundOptions = m.options || [];
+      roundHasClip = m.hasClip !== false;
       if (m.started) {
-        $('#p-audio-label').textContent = '🎵 À l\'écoute…';
+        $('#p-audio-label').textContent = roundHasClip ? '🎵 À l\'écoute…' : '❓ À vous de jouer !';
         renderOptions(lastRoundOptions);
       } else {
         // Le morceau n'a pas encore démarré : on ne dévoile PAS les propositions.
-        $('#p-audio-label').textContent = '🎧 Prépare-toi…';
+        $('#p-audio-label').textContent = roundHasClip ? '🎧 Prépare-toi…' : '❓ Prépare-toi…';
         $('#p-round-options').innerHTML = '';
       }
     },
@@ -123,7 +125,7 @@
 
     // Le morceau démarre réellement : on dévoile les propositions.
     roundGo(m) {
-      $('#p-audio-label').textContent = '🎵 À l\'écoute…';
+      $('#p-audio-label').textContent = roundHasClip ? '🎵 À l\'écoute…' : '❓ À vous de jouer !';
       renderOptions(lastRoundOptions);
       // Précharge la miniature du payoff (cache chaud) pour qu'elle s'affiche
       // instantanément à la révélation. Non affichée ici : aucun spoiler.
@@ -165,6 +167,9 @@
           else badges.push(`🐢 Main la plus lente : ${m.slowest.name}`);
         }
         if (m.soloCorrect) badges.push(`🧠 Seul contre tous : ${m.soloCorrect}`);
+        if (m.allCorrect) badges.push('🎯 Carton plein — tout le monde a trouvé !');
+        else if (m.noneCorrect) badges.push("🥅 Personne n'a trouvé !");
+        if (m.topTrap) badges.push(`🃏 Piège du jour : ${m.topTrap}`);
         if (badges.length) {
           fast.innerHTML = badges.map((b) => `<span class="fastest-badge">${escapeHtml(b)}</span>`).join('');
           fast.hidden = false;

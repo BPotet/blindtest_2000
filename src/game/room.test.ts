@@ -241,6 +241,38 @@ describe('Room — déroulé et scoring', () => {
     expect(room.liveDistribution()).toEqual([1, 2, 0]);
   });
 
+  it('badges de manche : piège du jour + personne n\'a trouvé', () => {
+    const room = new Room(makeQuiz(), 'ABCDE'); // options [A, B(correct=1), C]
+    const a = room.addPlayer('A', 's1');
+    const b = room.addPlayer('B', 's2');
+    const c = room.addPlayer('C', 's3');
+    if (!('player' in a) || !('player' in b) || !('player' in c)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(a.player.id, 0, 100); // faux (A)
+    room.submitAnswer(b.player.id, 0, 200); // faux (A) -> le leurre le plus coché
+    room.submitAnswer(c.player.id, 2, 300); // faux (C)
+    const r = room.endRound()!;
+    expect(r.topTrap).toBe('A'); // 2 voix sur le leurre A
+    expect(r.noneCorrect).toBe(true);
+    expect(r.allCorrect).toBe(false);
+  });
+
+  it('badges de manche : carton plein quand tout le monde trouve', () => {
+    const room = new Room(makeQuiz(), 'ABCDE');
+    const a = room.addPlayer('A', 's1');
+    const b = room.addPlayer('B', 's2');
+    if (!('player' in a) || !('player' in b)) throw new Error();
+    room.startNextRound();
+    room.markClipStarted(0);
+    room.submitAnswer(a.player.id, 1, 100); // bonne
+    room.submitAnswer(b.player.id, 1, 200); // bonne
+    const r = room.endRound()!;
+    expect(r.allCorrect).toBe(true);
+    expect(r.noneCorrect).toBe(false);
+    expect(r.topTrap).toBeNull(); // aucune voix sur un leurre
+  });
+
   it('« seul contre tous » quand une seule unité trouve', () => {
     const room = new Room(makeQuiz(), 'ABCDE');
     const alice = room.addPlayer('Alice', 's1');

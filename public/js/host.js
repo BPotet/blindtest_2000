@@ -97,6 +97,11 @@
     clearInterval(state.timer);
     $('#round-timer').textContent = '…';
     $('#round-bar').style.width = '100%';
+    if (!r.youtubeId) {
+      // Manche « quiz pur » (sans lien YouTube) : pas d'extrait, on ouvre la manche tout de suite.
+      onClipStarted();
+      return;
+    }
     if (state.ytReady && window.YT && window.YT.Player) {
       try {
         if (!state.yt) {
@@ -380,9 +385,9 @@
       `<button type="button" class="btn btn--ghost btn--sm r-down" aria-label="Descendre la manche" title="Descendre">↓</button>` +
       `<button type="button" class="btn btn--ghost btn--sm r-del" aria-label="Supprimer la manche" title="Supprimer">🗑️</button>` +
       `</div></div>` +
-      `<label>Lien YouTube (ou ID)</label>` +
+      `<label>Lien YouTube <span class="muted">(facultatif — laisse vide pour une question sans musique)</span></label>` +
       `<div style="display:flex; gap:8px; align-items:center;">` +
-      `<input class="r-yt" style="flex:1" placeholder="https://youtu.be/..." value="${escapeHtml(d?.youtube ?? '')}" />` +
+      `<input class="r-yt" style="flex:1" placeholder="Lien/ID YouTube, ou vide pour un quiz sans son" value="${escapeHtml(d?.youtube ?? '')}" />` +
       `<button type="button" class="btn btn--ghost btn--sm r-preview" title="Écouter l'extrait pour te rappeler le morceau">▶️ Aperçu</button>` +
       `</div>` +
       `<div class="field-row">` +
@@ -589,8 +594,11 @@
     for (let i = 0; i < rounds.length; i += 1) {
       const r = rounds[i];
       const num = i + 1;
-      if (!r.youtube) { toast(`Manche ${num} : colle un lien YouTube (ou un ID).`); return; }
-      if (!BT_quizForm.parseYtId(r.youtube)) { toast(`Manche ${num} : lien YouTube invalide.`); return; }
+      // Lien YouTube FACULTATIF : vide = question de quiz sans musique. S'il est
+      // rempli, il doit être valide.
+      if (r.youtube && !BT_quizForm.parseYtId(r.youtube)) {
+        toast(`Manche ${num} : lien YouTube invalide (laisse vide pour une question sans musique).`); return;
+      }
       if (r.options.length < 2) { toast(`Manche ${num} : ajoute au moins 2 propositions.`); return; }
       if (!r.question) { toast(`Manche ${num} : écris la question posée.`); return; }
     }
@@ -678,9 +686,13 @@
     $('#round-status').textContent = '';
     $('#round-live-dist').innerHTML = '';
     show('screen-round');
+    // Manche « quiz pur » (sans lien YouTube) : aucune zone vidéo.
+    const hasClip = !!p.hostRound.youtubeId;
+    const ytWrap = $('#round-yt-wrap');
+    if (ytWrap) ytWrap.style.display = hasClip ? '' : 'none';
     // Mode auto : la vidéo est masquée (l'écran de l'hôte est projeté et l'hôte
     // joue), les contrôles manuels disparaissent (tout s'enchaîne tout seul).
-    $('#yt-cover').style.display = state.autoplay ? 'flex' : 'none';
+    $('#yt-cover').style.display = state.autoplay && hasClip ? 'flex' : 'none';
     $('#manual-controls').style.display = state.autoplay ? 'none' : '';
     $('#reveal-answer').style.display = state.autoplay ? 'none' : '';
     $('#round-progress').textContent = `Manche ${p.hostRound.roundIndex + 1} / ${p.hostRound.totalRounds}`;
@@ -695,6 +707,7 @@
       options: p.hostRound.options,
       playerCount: p.playerCount,
       mode: state.roomMode,
+      hasClip, // manche avec extrait (audio) ou question « quiz pur »
       started: false, // propositions dévoilées seulement à onClipStarted
     });
     if (p.hostRound.roundIndex === 0) {
@@ -776,6 +789,9 @@
         atBuzzer: p.atBuzzer,
         slowestNoAnswer: p.slowestNoAnswer,
         soloCorrect: p.soloCorrect,
+        topTrap: p.topTrap,
+        allCorrect: p.allCorrect,
+        noneCorrect: p.noneCorrect,
         mode: state.roomMode,
       });
     }, 1200);

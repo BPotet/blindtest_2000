@@ -580,6 +580,12 @@ export class Room {
     slowestNoAnswer: boolean;
     /** Nom de l'unité si elle est la SEULE à avoir trouvé (« seul contre tous »). */
     soloCorrect: string | null;
+    /** Proposition (leurre) la plus cochée parmi les mauvaises — le « piège du jour ». */
+    topTrap: string | null;
+    /** Tout le monde a trouvé (« carton plein »). */
+    allCorrect: boolean;
+    /** Des gens ont répondu mais personne n'a trouvé. */
+    noneCorrect: boolean;
     perPlayer: Map<string, PlayerRoundResult>;
   } | null {
     if (this.state !== 'playing') return null;
@@ -720,6 +726,20 @@ export class Room {
     // « Au buzzer » : la main la plus lente a bien répondu, dans la dernière seconde.
     const atBuzzer = slowest !== null && !slowestNoAnswer && slowest.elapsedMs >= answerWindowMs - 1000;
 
+    // Badges de manche (depuis la répartition des votes) :
+    // « Piège du jour » = le leurre (mauvaise proposition) le plus coché.
+    let topTrap: string | null = null;
+    let topTrapVotes = 0;
+    for (let i = 0; i < distribution.length; i += 1) {
+      if (i === round.correctIndex) continue;
+      if (distribution[i] > topTrapVotes) { topTrapVotes = distribution[i]; topTrap = round.options[i]; }
+    }
+    if (topTrapVotes === 0) topTrap = null;
+    // « Carton plein » = toutes les unités ont trouvé ; « Personne ! » = des gens
+    // ont répondu mais aucune bonne réponse.
+    const allCorrect = this.respondentCount() > 0 && correctCount === this.respondentCount();
+    const noneCorrect = answeredCount > 0 && correctCount === 0;
+
     // Cumule les victoires de manche pour le palmarès de fin.
     if (fastest) stat(fastest.name).fastestWins += 1;
     if (slowest) {
@@ -749,6 +769,9 @@ export class Room {
       atBuzzer,
       slowestNoAnswer,
       soloCorrect,
+      topTrap,
+      allCorrect,
+      noneCorrect,
       perPlayer,
     };
   }

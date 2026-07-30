@@ -81,11 +81,14 @@ export const autoNextSchema = z.object({
 });
 
 const roundInputSchema = z.object({
+  // Facultatif : sans lien, la manche est une simple question de quiz (pas d'extrait).
   youtube: z
     .string()
-    .min(1)
+    .optional()
     .transform((value, ctx) => {
-      const id = parseYouTubeId(value);
+      const v = (value ?? '').trim();
+      if (!v) return ''; // manche « quiz pur », sans vidéo
+      const id = parseYouTubeId(v);
       if (!id) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Lien YouTube invalide.' });
         return z.NEVER;
