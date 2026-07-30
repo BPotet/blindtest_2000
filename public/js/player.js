@@ -144,7 +144,12 @@
   // Pré-remplissage du code depuis l'URL (QR code -> /join?code=XXXXX).
   const params = new URLSearchParams(location.search);
   const codeFromUrl = (params.get('code') || '').toUpperCase();
-  if (codeFromUrl) $('#join-code').value = codeFromUrl;
+  if (codeFromUrl) {
+    $('#join-code').value = codeFromUrl;
+    // QR/lien direct : on dévoile tout de suite le choix d'équipe si c'est une
+    // partie en équipes (différé pour laisser l'IIFE finir d'initialiser l'état).
+    setTimeout(() => { revealTeamsIfNeeded(); }, 0);
+  }
 
   // --- Rendu des propositions (cliquables) --------------------------------
   function renderOptions(options) {
@@ -531,18 +536,59 @@
       chip.type = 'button';
       chip.className = 'team-chip' + (t.name === prevSelected ? ' selected' : '');
       chip.dataset.name = t.name;
-      chip.textContent = `${t.name} · ${t.memberCount}`;
+      const nameEl = document.createElement('span');
+      nameEl.className = 'team-chip__name';
+      nameEl.textContent = t.name;
+      const countEl = document.createElement('span');
+      countEl.className = 'team-chip__count';
+      countEl.textContent = `${t.memberCount} joueur${t.memberCount > 1 ? 's' : ''}`;
+      chip.append(nameEl, countEl);
       chip.onclick = () => {
         $$('#team-chips .team-chip').forEach((c) => c.classList.remove('selected'));
         chip.classList.add('selected');
         $('#new-team').value = '';
+        $('#team-error').textContent = '';
       };
       box.appendChild(chip);
     });
+    const empty = $('#team-empty');
+    if (empty) empty.style.display = teams && teams.length ? 'none' : '';
   }
   function selectedChipName() {
     const sel = $('#team-chips .team-chip.selected');
     return sel ? sel.dataset.name : '';
+  }
+
+  // Charge (une fois) les infos de la salle : mode, équipes existantes.
+  async function fetchRoom(code) {
+    if (joinInfo && joinInfo.code === code) return joinInfo;
+    const res = await fetch(`/api/room/${code}`);
+    if (!res.ok) return null;
+    joinInfo = await res.json();
+    return joinInfo;
+  }
+
+  function showTeamSection(info, code) {
+    renderTeamPicker(info.teams || []);
+    const section = $('#team-section');
+    if (section.style.display !== 'block') {
+      // Observe la salle : les équipes créées sur d'autres téléphones apparaissent
+      // en direct, sans rien recharger.
+      socket.emit(BT_EVENTS.PLAYER_WATCH_ROOM, { code });
+      section.style.display = 'block';
+    }
+  }
+
+  // Dès qu'un code de partie EN ÉQUIPES est saisi, on dévoile le choix d'équipe
+  // (plus de double-clic « Rejoindre » : le joueur voit tout de suite quoi faire).
+  async function revealTeamsIfNeeded() {
+    const code = $('#join-code').value.trim().toUpperCase();
+    if (code.length < 4) return;
+    let info;
+    try { info = await fetchRoom(code); } catch (_) { return; }
+    if (!info) return;
+    if (info.mode === 'teams') showTeamSection(info, code);
+    else { const s = $('#team-section'); if (s) s.style.display = 'none'; }
   }
 
   async function doJoin() {
@@ -554,23 +600,15 @@
     if (code.length < 3) { $('#code-error').textContent = 'Entre le code de la salle.'; $('#join-code').focus(); return; }
     if (!pseudo) { $('#pseudo-error').textContent = 'Choisis un pseudo.'; $('#join-pseudo').focus(); return; }
 
-    if (!joinInfo || joinInfo.code !== code) {
-      try {
-        const res = await fetch(`/api/room/${code}`);
-        if (!res.ok) { $('#code-error').textContent = "Cette salle n'existe pas."; return; }
-        joinInfo = await res.json();
-      } catch (_) { toast('Erreur réseau.'); return; }
-    }
+    let info;
+    try { info = await fetchRoom(code); } catch (_) { toast('Erreur réseau.'); return; }
+    if (!info) { $('#code-error').textContent = "Cette salle n'existe pas."; return; }
 
-    if (joinInfo.mode === 'teams') {
+    if (info.mode === 'teams') {
       const section = $('#team-section');
-      if (!section.style.display || section.style.display === 'none') {
-        renderTeamPicker(joinInfo.teams);
-        // Observe la salle : les équipes créées sur d'autres téléphones
-        // apparaissent en direct sans avoir à recharger.
-        socket.emit(BT_EVENTS.PLAYER_WATCH_ROOM, { code });
-        section.style.display = 'block';
-        $('#join-btn').textContent = "C'est parti !";
+      // Repli : si le choix d'équipe n'était pas encore affiché, on le montre.
+      if (section.style.display !== 'block') {
+        showTeamSection(info, code);
         $('#new-team').focus();
         return;
       }
@@ -594,6 +632,8 @@
   });
   $('#join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#join-pseudo').focus(); });
   $('#join-pseudo').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
+  // Dès que le code est saisi (perte de focus), on dévoile le choix d'équipe si besoin.
+  $('#join-code').addEventListener('blur', () => { revealTeamsIfNeeded(); });
 
   // --- Reprise après rechargement / perte de connexion --------------------
   function tryReconnect() {

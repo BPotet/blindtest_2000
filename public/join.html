@@ -26,10 +26,18 @@
         <input id="join-pseudo" maxlength="24" autocomplete="off" placeholder="Ex. DJ Kévin" />
         <div class="field-error" id="pseudo-error"></div>
         <div id="team-section" style="display:none;">
-          <label>Ton équipe</label>
-          <div id="team-chips" class="team-chips"></div>
-          <input id="new-team" maxlength="24" autocomplete="off" placeholder="…ou crée une nouvelle équipe" />
-          <div class="field-error" id="team-error"></div>
+          <div class="team-picker">
+            <h2 class="team-picker__title">👥 Choisis ton équipe</h2>
+            <p class="muted team-picker__hint">Cette partie se joue en équipes. Rejoins-en une, ou crée la
+              tienne : tes coéquipiers pourront la choisir depuis leur téléphone.</p>
+            <div class="team-picker__label">Rejoindre une équipe</div>
+            <div id="team-chips" class="team-chips"></div>
+            <p class="muted team-empty" id="team-empty">Aucune équipe pour l'instant — crée la première 👇</p>
+            <div class="team-or">ou</div>
+            <label for="new-team">Créer une nouvelle équipe</label>
+            <input id="new-team" maxlength="24" autocomplete="off" placeholder="Nom de ta nouvelle équipe" />
+            <div class="field-error" id="team-error"></div>
+          </div>
         </div>
         <button id="join-btn" class="btn btn--lg" style="margin-top:12px;">Rejoindre</button>
       </div>
