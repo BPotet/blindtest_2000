@@ -311,6 +311,8 @@ export class Room {
   /** État de vote courant d'une équipe (pour affichage du tally + verrouillage). */
   getTeamVoteState(teamId: string): {
     counts: number[];
+    /** Qui a voté quoi (pseudo -> proposition), pour que les coéquipiers se coordonnent. */
+    voters: { name: string; optionIndex: number }[];
     voted: number;
     connected: number;
     locked: boolean;
@@ -319,10 +321,14 @@ export class Room {
     const round = this.quiz.rounds[this.currentRoundIndex];
     const optionCount = round ? round.options.length : 0;
     const counts = new Array<number>(optionCount).fill(0);
+    const voters: { name: string; optionIndex: number }[] = [];
     const votes = this.teamVotes.get(teamId);
     if (votes) {
-      for (const v of votes.values()) {
-        if (v.optionIndex >= 0 && v.optionIndex < optionCount) counts[v.optionIndex] += 1;
+      for (const [playerId, v] of votes) {
+        if (v.optionIndex < 0 || v.optionIndex >= optionCount) continue;
+        counts[v.optionIndex] += 1;
+        const p = this.players.get(playerId);
+        if (p) voters.push({ name: p.pseudo, optionIndex: v.optionIndex });
       }
     }
     const connected = [...this.players.values()].filter(
@@ -331,6 +337,7 @@ export class Room {
     const lock = this.teamLock.get(teamId);
     return {
       counts,
+      voters,
       voted: votes ? votes.size : 0,
       connected,
       locked: !!lock,

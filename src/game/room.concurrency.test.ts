@@ -196,6 +196,35 @@ describe('Concurrence — courses de vote en mode équipes', () => {
   });
 });
 
+describe('Vote d\'équipe — qui a voté quoi (coordination)', () => {
+  it('getTeamVoteState liste chaque votant avec sa proposition et suit les changements', () => {
+    const room = new Room(makeQuiz(), 'ABCDE', 'teams');
+    const p1 = playerId(room.addPlayer('Alice', 's1', 'Rouge'));
+    const p2 = playerId(room.addPlayer('Bob', 's2', 'Rouge'));
+    const teamId = room.listTeams()[0].id;
+    room.startNextRound();
+    room.markClipStarted(0);
+
+    room.submitAnswer(p1, 0, 100);
+    room.submitAnswer(p2, 2, 200);
+    let st = room.getTeamVoteState(teamId);
+    expect(st.voters).toEqual([
+      { name: 'Alice', optionIndex: 0 },
+      { name: 'Bob', optionIndex: 2 },
+    ]);
+    expect(st.counts).toEqual([1, 0, 1, 0]);
+
+    // Alice change d'avis -> reflété dans voters (nouvelle proposition).
+    room.submitAnswer(p1, 2, 300);
+    st = room.getTeamVoteState(teamId);
+    expect(st.voters).toEqual([
+      { name: 'Alice', optionIndex: 2 },
+      { name: 'Bob', optionIndex: 2 },
+    ]);
+    expect(st.counts).toEqual([0, 0, 2, 0]);
+  });
+});
+
 describe('Concurrence — isolation stricte entre salles', () => {
   it('les réponses d\'une salle n\'affectent ni le score ni le classement d\'une autre', () => {
     const mgr = new RoomManager();

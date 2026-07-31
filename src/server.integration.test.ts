@@ -605,6 +605,48 @@ describe('Mode équipes (Socket.IO)', () => {
     expect(res.results[bj.playerId].correct).toBe(true);
   });
 
+  it('indique aux coéquipiers qui a voté quoi (voters nom + proposition)', async () => {
+    const host = connectHost();
+    await once(host, 'connect');
+    host.emit('host:createRoom', { quizId: 'demo-tubes', mode: 'teams' });
+    const created = await once<any>(host, 'host:roomCreated');
+    const code = created.code;
+
+    const a = connect();
+    a.emit('player:join', { code, pseudo: 'Alice', team: 'Rouge' });
+    await once<any>(a, 'player:joined');
+    const b = connect();
+    b.emit('player:join', { code, pseudo: 'Bob', team: 'Rouge' });
+    await once<any>(b, 'player:joined');
+
+    host.emit('host:startRound');
+    await once(host, 'host:roundStarted');
+    const qs = [once(a, 'player:roundStarted'), once(b, 'player:roundStarted')];
+    host.emit('host:clipStarted');
+    await Promise.all(qs);
+
+    // Alice reçoit l'état de vote où figurent les DEUX votes (nom -> proposition).
+    const bothVoted = new Promise<any>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('voters incomplets')), 5000);
+      const h = (p: any) => {
+        if ((p.voters || []).length === 2) {
+          a.off('player:teamVotes', h);
+          clearTimeout(t);
+          resolve(p);
+        }
+      };
+      a.on('player:teamVotes', h);
+    });
+    a.emit('player:answer', { optionIndex: 0 });
+    await once(a, 'player:answerAccepted');
+    b.emit('player:answer', { optionIndex: 2 });
+    const state = await bothVoted;
+
+    const byName = Object.fromEntries(state.voters.map((v: any) => [v.name, v.optionIndex]));
+    expect(byName).toEqual({ Alice: 0, Bob: 2 });
+    host.emit('host:endGame');
+  }, 30000);
+
   it('pousse aux joueurs qui observent les équipes créées en parallèle', async () => {
     const host = connectHost();
     await once(host, 'connect');

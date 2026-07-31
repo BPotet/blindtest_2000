@@ -284,7 +284,10 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
 }
 .option:active { transform: scale(0.98); }
 .option:disabled { cursor: default; }
-.option__shape { font-size: 22px; opacity: 0.9; }
+.option__shape { font-size: 22px; opacity: 0.9; flex-shrink: 0; }
+.option__label { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+/* Mode équipes : coéquipiers ayant choisi cette proposition. */
+.option-voters { font-size: 12px; font-weight: 600; line-height: 1.25; opacity: 0.92; word-break: break-word; }
 .option[data-c="0"] { background: var(--opt-0); }
 .option[data-c="1"] { background: var(--opt-1); }
 .option[data-c="2"] { background: var(--opt-2); }

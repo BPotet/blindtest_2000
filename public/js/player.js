@@ -163,7 +163,8 @@
       btn.dataset.i = String(i);
       btn.innerHTML =
         `<span class="option__shape">${OPTION_SHAPES[i % 6]}</span>` +
-        `<span>${escapeHtml(opt)}</span>` +
+        `<span class="option__label"><span class="option__text">${escapeHtml(opt)}</span>` +
+        `<span class="option-voters" data-voters="${i}" hidden></span></span>` +
         `<span class="vote-count" data-count="${i}" style="display:none"></span>`;
       btn.onclick = () => submitAnswer(i, btn);
       box.appendChild(btn);
@@ -175,6 +176,25 @@
       const n = counts[Number(el.dataset.count)] || 0;
       el.textContent = n > 0 ? String(n) : '';
       el.style.display = n > 0 ? 'inline-flex' : 'none';
+    });
+  }
+
+  // Mode équipes : affiche, sous chaque proposition, les coéquipiers qui l'ont
+  // choisie (« Alice, Bob ») — pour se coordonner avant de verrouiller.
+  function renderTeamVoters(voters) {
+    const byOption = {};
+    (voters || []).forEach((v) => {
+      (byOption[v.optionIndex] = byOption[v.optionIndex] || []).push(v.name);
+    });
+    $$('#q-options .option-voters').forEach((el) => {
+      const names = byOption[Number(el.dataset.voters)] || [];
+      if (names.length) {
+        el.textContent = `👥 ${names.join(', ')}`;
+        el.hidden = false;
+      } else {
+        el.textContent = '';
+        el.hidden = true;
+      }
     });
   }
 
@@ -400,6 +420,7 @@
   socket.on(BT_EVENTS.PLAYER_TEAM_VOTES, (p) => {
     const counts = p.counts || [];
     renderVoteCounts(counts);
+    renderTeamVoters(p.voters);
     const lockBtn = $('#team-lock-btn');
     if (p.locked) {
       state.teamLocked = true;
