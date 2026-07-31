@@ -229,8 +229,36 @@
     img.style.filter = ratio > 0 ? `blur(${(CLUE_MAX_BLUR * ratio).toFixed(1)}px)` : 'none';
   }
 
+  // --- Thème clair / sombre (persisté, partagé par toutes les pages) ------
+  // Le <head> pose déjà data-theme avant le rendu (anti-flash) ; ici on
+  // synchronise l'icône du bouton et on branche le clic.
+  const THEME_KEY = 'bt-theme';
+  function applyTheme(theme) {
+    const light = theme === 'light';
+    document.documentElement.dataset.theme = light ? 'light' : 'dark';
+    const btn = $('#theme-toggle');
+    if (btn) {
+      btn.textContent = light ? '🌙' : '☀️';
+      const label = light ? 'Passer en thème sombre' : 'Passer en thème clair';
+      btn.setAttribute('aria-label', label);
+      btn.title = label;
+    }
+  }
+  function toggleTheme() {
+    const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    try { localStorage.setItem(THEME_KEY, next); } catch (_) { /* stockage indispo */ }
+    applyTheme(next);
+  }
+  (function initTheme() {
+    let saved = 'dark';
+    try { saved = localStorage.getItem(THEME_KEY) || 'dark'; } catch (_) { /* ignore */ }
+    applyTheme(saved);
+    const btn = $('#theme-toggle');
+    if (btn) btn.addEventListener('click', toggleTheme);
+  })();
+
   window.App = {
     $, $$, show, escapeHtml, OPTION_SHAPES, toast, renderLeaderboard, renderDistribution,
-    Sound, playCountdown, confetti, renderPodium, renderAwards, applyClueBlur,
+    Sound, playCountdown, confetti, renderPodium, renderAwards, applyClueBlur, toggleTheme,
   };
 })();

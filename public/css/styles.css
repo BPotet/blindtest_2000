@@ -24,6 +24,23 @@
   --opt-5: #0891b2;
 }
 
+/* Thème clair (opt-in, persisté via localStorage ; le défaut reste sombre). */
+:root[data-theme="light"] {
+  --bg: #f3f0fb;
+  --bg-2: #e7e0f5;
+  --surface: #ffffff;
+  --surface-2: #f1ecfb;
+  --accent-2: #9333ea;
+  --text: #1c1330;
+  --text-muted: #5f5578;
+  --shadow: 0 12px 40px rgba(90, 60, 150, 0.16);
+}
+:root[data-theme="light"] .card { border-color: rgba(30, 20, 60, 0.08); }
+:root[data-theme="light"] input,
+:root[data-theme="light"] select { border-color: rgba(30, 20, 60, 0.18); }
+:root[data-theme="light"] .chip-btn,
+:root[data-theme="light"] .btn--ghost { border-color: rgba(30, 20, 60, 0.20); }
+
 * { box-sizing: border-box; }
 
 /* L'attribut `hidden` doit TOUJOURS masquer, même sur un élément qui porte une
@@ -170,6 +187,10 @@ input:focus, select:focus { outline: 2px solid var(--accent-2); border-color: tr
   border-radius: var(--radius-sm); font-weight: 700; text-align: center;
 }
 .r-preview { flex-shrink: 0; }
+
+/* Aide / onboarding hôte : étapes numérotées. */
+.help-steps { margin: 10px 0 0; padding-left: 22px; }
+.help-steps li { margin-bottom: 12px; }
 
 /* Onglets connexion / inscription */
 .auth-tabs { display: flex; gap: 8px; margin-bottom: 18px; }

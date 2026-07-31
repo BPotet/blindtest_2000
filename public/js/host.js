@@ -587,6 +587,29 @@
     } catch (_) { toast('Erreur réseau.'); }
   }
 
+  // Copie dans le presse-papier avec repli pour les contextes sans Clipboard API
+  // (http non sécurisé, vieux navigateurs).
+  async function copyText(text, label) {
+    if (!text) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      toast(`${label} copié !`);
+    } catch (_) {
+      toast('Copie impossible.');
+    }
+  }
+
   async function saveQuiz() {
     const title = $('#quiz-title').value.trim();
     if (!title) { toast('Donne un titre au quiz.'); return; }
@@ -1134,6 +1157,13 @@
   $('#room-config-modal').addEventListener('click', (e) => { if (e.target.id === 'room-config-modal') closeRoomConfig(); });
   $('#preview-close').onclick = closePreview;
   $('#preview-modal').addEventListener('click', (e) => { if (e.target.id === 'preview-modal') closePreview(); });
+  // Aide / onboarding hôte.
+  $('#help-btn').onclick = () => { $('#help-modal').style.display = 'flex'; };
+  $('#help-close').onclick = () => { $('#help-modal').style.display = 'none'; };
+  $('#help-modal').addEventListener('click', (e) => { if (e.target.id === 'help-modal') $('#help-modal').style.display = 'none'; });
+  // Copier le lien d'invitation / le code de la salle (partage rapide).
+  $('#copy-link').onclick = () => copyText($('#lobby-url').textContent, 'Lien');
+  $('#copy-code').onclick = () => copyText($('#lobby-code').textContent, 'Code');
   $('#mode-solo').onclick = () => setMode('solo');
   $('#mode-teams').onclick = () => setMode('teams');
   $('#combo-on').onclick = () => setCombo(true);

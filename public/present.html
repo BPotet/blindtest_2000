@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Blindtest 2000 — Écran public</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%96%A5%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('bt-theme')||'dark'}catch(e){}</script>
   <link rel="stylesheet" href="/css/styles.css?v=__ASSET_VERSION__" />
 </head>
 <body class="present">
@@ -12,6 +13,7 @@
     <header class="brand">
       <span class="brand__logo">Blindtest 2000</span>
       <span class="brand__tag">écran public</span>
+      <button id="theme-toggle" class="icon-btn" style="margin-left:auto" aria-label="Changer de thème">☀️</button>
     </header>
 
     <!-- En attente de l'hôte -->

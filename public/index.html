@@ -6,6 +6,7 @@
   <title>Blindtest 2000 — Hôte</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://www.youtube.com" />
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('bt-theme')||'dark'}catch(e){}</script>
   <link rel="stylesheet" href="/css/styles.css?v=__ASSET_VERSION__" />
 </head>
 <body>
@@ -14,6 +15,8 @@
       <span class="brand__logo">Blindtest 2000</span>
       <span class="brand__tag">écran de l'hôte</span>
       <button id="mute-btn" class="icon-btn" style="margin-left:auto" aria-label="Activer ou couper le son">🔊</button>
+      <button id="theme-toggle" class="icon-btn" aria-label="Changer de thème">☀️</button>
+      <button id="help-btn" class="icon-btn" aria-label="Aide : comment lancer une partie" title="Aide">❓</button>
       <button id="open-present" class="btn btn--ghost" style="display:none;" title="Ouvrir l'écran à projeter ou partager (sans la vidéo)">🖥️ Écran public</button>
       <span id="host-user" class="host-user" style="display:none;"></span>
       <button id="logout-btn" class="btn btn--ghost" style="display:none;" aria-label="Se déconnecter">Se déconnecter</button>
@@ -107,6 +110,10 @@
             <p>Pour rejoindre, scanne le QR code ou va sur :</p>
             <p class="join-url"><strong id="lobby-url"></strong></p>
             <p class="muted">…puis saisis le code <strong id="lobby-code-inline"></strong>.</p>
+            <div class="btn-row" style="margin-top:6px;">
+              <button id="copy-link" class="btn btn--ghost btn--sm">📋 Copier le lien</button>
+              <button id="copy-code" class="btn btn--ghost btn--sm">📋 Copier le code</button>
+            </div>
             <p style="margin-top:16px;">Joueurs connectés : <span class="count-pill" id="player-count">0</span></p>
             <div class="players" id="lobby-players"></div>
           </div>
@@ -263,6 +270,24 @@
         </div>
         <div class="yt-wrap" style="margin-top:12px;"><div id="preview-player"></div></div>
         <p class="hint">L'aperçu démarre au point de départ que tu as réglé. Ferme cette fenêtre quand tu veux.</p>
+      </div>
+    </div>
+
+    <!-- Aide / onboarding hôte : comment lancer une partie, dans l'ordre. -->
+    <div id="help-modal" class="modal-overlay" style="display:none;">
+      <div class="modal">
+        <div class="round-head">
+          <h2 style="margin:0;">❓ Comment lancer une partie</h2>
+          <button id="help-close" class="btn btn--ghost btn--sm">✖️ Fermer</button>
+        </div>
+        <ol class="help-steps">
+          <li><strong>Choisis un quiz</strong> (ou crée/importe le tien), puis clique <em>Ouvrir une salle</em> et règle la partie (mode solo/équipes, combo, partie auto…).</li>
+          <li><strong>Projette cet écran de contrôle</strong>, ou ouvre l'<em>Écran public</em> (bouton en haut) et partage <em>celui-là</em> — la vidéo YouTube reste privée sur ta fenêtre de contrôle.</li>
+          <li><strong>Les joueurs rejoignent</strong> en scannant le QR code ou en tapant le code de la salle sur leur téléphone.</li>
+          <li><strong>Démarre la partie</strong> quand tout le monde est là. À chaque manche, l'extrait se lance ; les joueurs répondent au QCM sur mobile.</li>
+          <li><strong>Révèle la réponse</strong> (ou laisse la partie auto enchaîner). Tu peux mettre en pause, rejouer une manche, passer, ou exclure un joueur à tout moment.</li>
+        </ol>
+        <p class="hint">💡 Astuce : « ⧉ Dupliquer » sur une démo te donne une copie éditable pour partir d'une base toute prête.</p>
       </div>
     </div>
   </div>
