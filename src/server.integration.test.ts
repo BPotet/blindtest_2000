@@ -158,6 +158,18 @@ describe('Pages statiques', () => {
     expect(html).not.toContain('id="yt-player"');
     expect(html).not.toContain('youtube.com/iframe_api');
   });
+
+  it('injecte une version d\'assets (cache-busting) dans le HTML servi', async () => {
+    const res = await fetch(`http://localhost:${port}/join`);
+    expect(res.status).toBe(200);
+    // Le HTML ne doit pas être mis en cache (il pointe vers des assets versionnés).
+    expect(res.headers.get('cache-control')).toContain('no-cache');
+    const html = await res.text();
+    // Le jeton doit être remplacé (jamais servi tel quel) et les assets versionnés.
+    expect(html).not.toContain('__ASSET_VERSION__');
+    expect(html).toMatch(/\/js\/player\.js\?v=/);
+    expect(html).toMatch(/\/css\/styles\.css\?v=/);
+  });
 });
 
 describe('CRUD playlists (HTTP)', () => {

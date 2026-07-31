@@ -1,5 +1,6 @@
 import { createServer, type Server as HttpServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import express, { type Express, type RequestHandler, type Request } from 'express';
 import { Server as IOServer, type Socket } from 'socket.io';
@@ -48,6 +49,28 @@ import { EVENTS } from './events';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
 const ROOM_IDLE_MS = 3 * 60 * 60 * 1000; // 3 h d'inactivité
+
+// Version des assets pour le cache-busting : le commit déployé sur Render, sinon
+// l'horodatage de démarrage. Injectée dans le HTML (`?v=…` sur css/js) pour que
+// chaque déploiement force les navigateurs à retélécharger le nouveau front —
+// sinon un téléphone peut continuer à exécuter l'ancien player.js après un push.
+const ASSET_VERSION =
+  (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || String(Date.now());
+
+// Sert un fichier HTML en remplaçant le jeton de version, sans mise en cache du
+// HTML lui-même (le HTML pointe vers des assets versionnés, il doit rester frais).
+const htmlCache = new Map<string, string>();
+function serveHtml(res: express.Response, file: string): void {
+  let html = htmlCache.get(file);
+  if (html === undefined) {
+    html = readFileSync(path.join(PUBLIC_DIR, file), 'utf8').replaceAll(
+      '__ASSET_VERSION__',
+      ASSET_VERSION,
+    );
+    htmlCache.set(file, html);
+  }
+  res.set('Cache-Control', 'no-cache').type('html').send(html);
+}
 
 interface SocketData {
   role?: 'host' | 'player';
@@ -342,11 +365,14 @@ export function buildServer(
     }
   });
 
-  // Fichiers statiques du front (host + player), et fallback SPA-léger.
-  app.use(express.static(PUBLIC_DIR));
-  app.get('/join', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'join.html')));
+  // Pages HTML : servies avec la version d'assets injectée (cache-busting) et
+  // sans cache, avant express.static pour que « / » passe par le helper.
+  app.get('/', (_req, res) => serveHtml(res, 'index.html'));
+  app.get('/join', (_req, res) => serveHtml(res, 'join.html'));
   // Écran public (projeté / partagé) : tout sauf la vidéo YouTube.
-  app.get('/present', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'present.html')));
+  app.get('/present', (_req, res) => serveHtml(res, 'present.html'));
+  // Fichiers statiques du front (css/js) : index désactivé (« / » ci-dessus).
+  app.use(express.static(PUBLIC_DIR, { index: false }));
 
   const httpServer = createServer(app);
   const io = new IOServer(httpServer);
