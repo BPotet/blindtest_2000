@@ -26,6 +26,13 @@
 
 * { box-sizing: border-box; }
 
+/* L'attribut `hidden` doit TOUJOURS masquer, même sur un élément qui porte une
+   règle `display:` d'auteur (sinon `display: block` d'une classe l'emporte sur
+   le `display:none` du navigateur et l'élément « masqué » reste visible — c'est
+   ce qui faisait apparaître l'`<img class="round-media-img" hidden>` vide avec
+   son texte alt « Indice visuel »). */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;

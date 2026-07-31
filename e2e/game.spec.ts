@@ -38,6 +38,10 @@ test('l\'appli se lance et joue une manche complète', async ({ page, context })
   // --- L'hôte démarre, le joueur voit les propositions et répond ---
   await page.click('#start-game');
   await player.locator('#q-options .option').first().waitFor({ state: 'visible', timeout: 20_000 });
+  // Manche audio (sans image) : l'indice visuel ne doit PAS s'afficher.
+  // (Régression : `.round-media-img { display:block }` écrasait l'attribut `hidden`,
+  // faisant apparaître un `<img>` vide avec son alt « Indice visuel ».)
+  await expect(player.locator('#q-image')).toBeHidden();
   await player.locator('#q-options .option').first().click();
 
   // --- L'hôte révèle (après le décompte 3·2·1) : résultat des deux côtés ---

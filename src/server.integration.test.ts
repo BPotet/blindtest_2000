@@ -637,6 +637,56 @@ describe('Son sur les téléphones (Socket.IO)', () => {
   });
 });
 
+describe('Exclusivité média — indice image vs blindtest audio (Socket.IO)', () => {
+  // Joue la 1re manche d'un quiz créé à la volée et renvoie la publicRound reçue
+  // par le joueur (celle qui pilote l'affichage : audio, image, ou rien).
+  async function playCustomRound(round: Record<string, unknown>) {
+    const owner = await server.quizRepo.getUserByUsername('admin');
+    const quiz = await server.quizRepo.create(owner!.id, 'Média', [
+      {
+        startSeconds: 0,
+        durationSeconds: 30,
+        question: 'Q ?',
+        options: ['A', 'B'],
+        correctIndex: 0,
+        answerLabel: 'A',
+        ...round,
+      } as any,
+    ]);
+    const host = connectHost();
+    await once(host, 'connect');
+    host.emit('host:createRoom', { quizId: quiz.id });
+    const created = await once<any>(host, 'host:roomCreated');
+    const alice = connect();
+    alice.emit('player:join', { code: created.code, pseudo: 'Alice' });
+    await once<any>(alice, 'player:joined');
+    host.emit('host:startRound');
+    await once<any>(host, 'host:roundStarted');
+    const started = once<any>(alice, 'player:roundStarted');
+    host.emit('host:clipStarted');
+    return (await started).publicRound;
+  }
+
+  it("n'envoie JAMAIS l'image sur une manche audio, même si un lien image est renseigné", async () => {
+    // Le bug signalé : une manche blindtest (YouTube) avec AUSSI une URL d'image
+    // faisait fuiter l'« indice visuel » sur le téléphone du joueur.
+    const publicRound = await playCustomRound({
+      youtubeId: 'aaaaaaaaaaa',
+      imageUrl: 'https://example.com/pochette.jpg',
+    });
+    expect(publicRound.imageUrl).toBeUndefined(); // audio ET image sont exclusifs
+  });
+
+  it("envoie bien l'image sur une manche sans audio (vrai quiz image)", async () => {
+    const publicRound = await playCustomRound({
+      youtubeId: '',
+      imageUrl: 'https://example.com/indice.jpg',
+    });
+    expect(publicRound.imageUrl).toBe('https://example.com/indice.jpg');
+    expect(publicRound.audioYoutubeId).toBeUndefined();
+  });
+});
+
 describe('Import YouTube — désactivé (pas de clé)', () => {
   it('/api/me indique youtubeImport:false et l\'endpoint répond 503', async () => {
     const me = await fetch(`http://localhost:${port}/api/me`, { headers: { Cookie: cookie } });
