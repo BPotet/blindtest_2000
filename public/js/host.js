@@ -260,6 +260,15 @@
         open.onclick = () => openRoomConfig(q.id, q.title);
         actions.appendChild(open);
 
+        // Dupliquer : dispo pour tous les quiz (y compris les démos) -> copie
+        // éditable dans son propre espace.
+        const dup = document.createElement('button');
+        dup.className = 'btn btn--ghost btn--sm';
+        dup.textContent = '⧉ Dupliquer';
+        dup.setAttribute('aria-label', `Dupliquer ${q.title}`);
+        dup.onclick = () => duplicateQuiz(q.id);
+        actions.appendChild(dup);
+
         if (!q.isDemo) {
           const edit = document.createElement('button');
           edit.className = 'btn btn--ghost btn--sm';
@@ -565,6 +574,15 @@
       const res = await fetch(`/api/quizzes/${id}`, { method: 'DELETE' });
       if (!res.ok) { toast('Suppression impossible.'); return; }
       toast('Playlist supprimée.');
+      await loadQuizzes();
+    } catch (_) { toast('Erreur réseau.'); }
+  }
+
+  async function duplicateQuiz(id) {
+    try {
+      const res = await fetch(`/api/quizzes/${id}/duplicate`, { method: 'POST' });
+      if (!res.ok) { toast('Duplication impossible.'); return; }
+      toast('Copie créée — tu peux l\'éditer.');
       await loadQuizzes();
     } catch (_) { toast('Erreur réseau.'); }
   }

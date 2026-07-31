@@ -333,6 +333,27 @@ export function buildServer(
     res.json({ ok: true });
   });
 
+  // Duplique un quiz accessible (le sien OU une démo) en une copie qui lui
+  // appartient et qu'il peut éditer — pratique pour partir d'une démo ou d'un
+  // quiz existant sans tout ressaisir.
+  app.post('/api/quizzes/:id/duplicate', requireAuth, async (req, res) => {
+    try {
+      const source = await quizRepo.get(req.params.id);
+      if (!source || !canAccessQuiz(source, res.locals.userId as string)) {
+        res.status(404).json({ error: 'not_found' });
+        return;
+      }
+      const copy = await quizRepo.create(
+        res.locals.userId as string,
+        `${source.title} (copie)`,
+        source.rounds, // les ids de manche sont régénérés par le store
+      );
+      res.status(201).json({ id: copy.id, title: copy.title, roundCount: copy.rounds.length });
+    } catch {
+      res.status(500).json({ error: 'server_error' });
+    }
+  });
+
   app.get('/api/room/:code', (req, res) => {
     const room = roomManager.get(req.params.code);
     if (!room) {

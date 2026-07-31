@@ -230,6 +230,39 @@ describe('CRUD playlists (HTTP)', () => {
     expect(del.status).toBe(404);
   });
 
+  it('duplique une démo en une copie éditable qui appartient à l\'hôte', async () => {
+    const dup = await fetch(`http://localhost:${port}/api/quizzes/demo-tubes/duplicate`, {
+      method: 'POST',
+      headers: { Cookie: cookie },
+    });
+    expect(dup.status).toBe(201);
+    const copy = (await dup.json()) as { id: string; title: string; roundCount: number };
+    expect(copy.title).toBe('Tubes intemporels (copie)');
+    expect(copy.roundCount).toBeGreaterThan(0);
+    expect(copy.id).not.toBe('demo-tubes');
+
+    // La copie est bien la sienne : éditable (PUT 200) et supprimable (DELETE 200).
+    const put = await fetch(`http://localhost:${port}/api/quizzes/${copy.id}`, {
+      method: 'PUT',
+      headers: json(),
+      body: JSON.stringify({ ...body, title: 'Ma version' }),
+    });
+    expect(put.status).toBe(200);
+    const del = await fetch(`http://localhost:${port}/api/quizzes/${copy.id}`, {
+      method: 'DELETE',
+      headers: { Cookie: cookie },
+    });
+    expect(del.status).toBe(200);
+  });
+
+  it('refuse de dupliquer un quiz inexistant (404)', async () => {
+    const dup = await fetch(`http://localhost:${port}/api/quizzes/nope/duplicate`, {
+      method: 'POST',
+      headers: { Cookie: cookie },
+    });
+    expect(dup.status).toBe(404);
+  });
+
   it('refuse la création sans session (401)', async () => {
     const res = await fetch(`http://localhost:${port}/api/quizzes`, {
       method: 'POST',
