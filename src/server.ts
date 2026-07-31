@@ -401,8 +401,9 @@ function toPublicRound(room: Room): PublicRound | null {
     pr.audioYoutubeId = round.youtubeId;
     pr.audioStartSeconds = round.startSeconds;
   }
-  // Image = indice visuel (la question, pas la réponse) : toujours transmise.
-  if (round.imageUrl) pr.imageUrl = round.imageUrl;
+  // Image = indice visuel, UNIQUEMENT pour une manche sans audio (le blindtest
+  // audio et le quiz image sont exclusifs : une manche est audio, OU image, OU texte).
+  if (round.imageUrl && !round.youtubeId) pr.imageUrl = round.imageUrl;
   return pr;
 }
 

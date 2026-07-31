@@ -108,11 +108,18 @@
       lastRoundOptions = m.options || [];
       roundHasClip = m.hasClip !== false;
       // Indice visuel : on affiche l'image et on masque le visualiseur audio.
+      // Une image cassée (URL morte) ne doit jamais montrer le placeholder alt :
+      // on la masque et on rebascule sur la scène « à vous de jouer ».
       const pImg = $('#p-round-image');
       if (m.imageUrl) {
-        pImg.src = m.imageUrl; pImg.hidden = false; pImg.style.filter = 'blur(20px)';
+        pImg.onerror = () => {
+          pImg.hidden = true; pImg.removeAttribute('src');
+          $('#p-audio-stage').style.display = '';
+        };
+        pImg.hidden = false; pImg.style.filter = 'blur(20px)'; pImg.src = m.imageUrl;
         $('#p-audio-stage').style.display = 'none';
       } else {
+        pImg.onerror = null;
         pImg.hidden = true; pImg.removeAttribute('src');
         $('#p-audio-stage').style.display = '';
       }

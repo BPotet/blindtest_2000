@@ -701,8 +701,13 @@
     const imageUrl = !hasClip && p.hostRound.imageUrl ? p.hostRound.imageUrl : '';
     const imgEl = $('#round-image');
     if (imgEl) {
-      if (imageUrl) { imgEl.src = imageUrl; imgEl.hidden = false; imgEl.style.filter = 'blur(20px)'; }
-      else { imgEl.hidden = true; imgEl.removeAttribute('src'); }
+      if (imageUrl) {
+        // Image cassée (URL morte) : on la masque plutôt que de montrer l'alt.
+        imgEl.onerror = () => { imgEl.hidden = true; imgEl.removeAttribute('src'); };
+        imgEl.hidden = false; imgEl.style.filter = 'blur(20px)'; imgEl.src = imageUrl;
+      } else {
+        imgEl.onerror = null; imgEl.hidden = true; imgEl.removeAttribute('src');
+      }
     }
     // Mode auto : la vidéo est masquée (l'écran de l'hôte est projeté et l'hôte
     // joue), les contrôles manuels disparaissent (tout s'enchaîne tout seul).

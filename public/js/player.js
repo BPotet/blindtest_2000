@@ -232,10 +232,15 @@
       streakBadge.style.display = 'none';
     }
     $('#q-text').textContent = pr.question;
-    // Indice visuel (image) si la manche en a un.
+    // Indice visuel (image) si la manche en a un. Une image cassée se masque
+    // au lieu d'afficher le placeholder alt « Indice visuel ».
     const qImg = $('#q-image');
-    if (pr.imageUrl) { qImg.src = pr.imageUrl; qImg.hidden = false; qImg.style.filter = 'blur(20px)'; }
-    else { qImg.hidden = true; qImg.removeAttribute('src'); }
+    if (pr.imageUrl) {
+      qImg.onerror = () => { qImg.hidden = true; qImg.removeAttribute('src'); };
+      qImg.hidden = false; qImg.style.filter = 'blur(20px)'; qImg.src = pr.imageUrl;
+    } else {
+      qImg.onerror = null; qImg.hidden = true; qImg.removeAttribute('src');
+    }
     $('#q-status').textContent = state.mode === 'teams' ? '🗳️ Votez pour votre équipe !' : 'À toi de jouer !';
     const lockBtn = $('#team-lock-btn');
     if (state.mode === 'teams') {
