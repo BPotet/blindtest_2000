@@ -4,8 +4,10 @@
 // Data API v3 (métadonnées uniquement — aucune extraction/téléchargement audio,
 // donc pas de risque « stream-ripping »), puis fabrique une manche par morceau :
 // la bonne réponse est le titre du morceau, les mauvaises réponses sont d'autres
-// titres de la MÊME playlist (donc plausibles et dans le thème). Le tout est
-// renvoyé à l'hôte qui relit/ajuste dans le constructeur avant d'enregistrer.
+// titres de la MÊME playlist (donc plausibles et dans le thème). Les leurres ne
+// se répètent pas d'une manche à l'autre tant que la playlist fournit assez de
+// titres frais (voir `pickLeastSeen`). Le tout est renvoyé à l'hôte qui
+// relit/ajuste dans le constructeur avant d'enregistrer.
 
 export interface PlaylistVideo {
   title: string;
@@ -89,11 +91,44 @@ function clampInt(v: number | undefined, min: number, max: number, fallback: num
   return Math.max(min, Math.min(max, n));
 }
 
-function pickRandom<T>(arr: T[], n: number, rng: () => number): T[] {
-  const copy = arr.slice();
-  const out: T[] = [];
-  while (copy.length > 0 && out.length < n) {
-    out.push(copy.splice(Math.floor(rng() * copy.length), 1)[0]);
+/**
+ * Tire `n` leurres en évitant de resservir un titre déjà vu par les joueurs.
+ * Chaque candidat reçoit un coût, et on pioche au hasard parmi les moins chers :
+ *
+ *   coût = (nb d'apparitions passées) * 2 + (réservé comme bonne réponse ? 1 : 0)
+ *
+ * Donc l'ordre de préférence est : jamais montré et jamais joué  >  jamais
+ * montré mais bonne réponse d'une autre manche (l'utiliser créerait une
+ * répétition plus tard)  >  déjà montré une fois  >  etc.
+ *
+ * Tant que la playlist fournit assez de titres frais, AUCUNE proposition ne se
+ * répète d'une manche à l'autre. Une manche consomme ~4 titres : si la playlist
+ * est trop courte (cas classique « 15 morceaux -> 15 manches », où tous les
+ * titres sont forcément rejoués), la répétition devient inévitable — elle est
+ * alors étalée équitablement plutôt que laissée au hasard, ce qui évite qu'un
+ * même titre revienne sans arrêt pendant qu'un autre ne sort jamais.
+ */
+function pickLeastSeen(
+  pool: string[],
+  n: number,
+  seen: Map<string, number>,
+  reserved: Set<string>,
+  rng: () => number,
+): string[] {
+  const remaining = new Set(pool);
+  const cost = (t: string) => (seen.get(t) ?? 0) * 2 + (reserved.has(t) ? 1 : 0);
+  const out: string[] = [];
+  while (out.length < n && remaining.size > 0) {
+    let min = Infinity;
+    for (const t of remaining) {
+      const c = cost(t);
+      if (c < min) min = c;
+    }
+    const candidates: string[] = [];
+    for (const t of remaining) if (cost(t) === min) candidates.push(t);
+    const picked = candidates[Math.floor(rng() * candidates.length)];
+    out.push(picked);
+    remaining.delete(picked);
   }
   return out;
 }
@@ -141,10 +176,20 @@ export function buildRoundsFromVideos(
   // playlist importée : on mélange puis on garde `maxRounds` morceaux.
   const chosen = shuffle(uniqueVideos, rng).slice(0, maxRounds);
 
+  // Mémoire des titres déjà montrés (bonne réponse OU leurre) dans les manches
+  // précédentes : on évite de resservir les mêmes propositions d'une manche à
+  // l'autre, y compris une bonne réponse déjà dévoilée.
+  const seen = new Map<string, number>();
+  // Titres réservés : ils seront la bonne réponse d'une manche, donc les prendre
+  // comme leurre créerait une répétition (avant ou après leur manche).
+  const reserved = new Set(chosen.map((c) => c.title));
+
   return chosen.map((v) => {
-    // Distracteurs tirés de TOUTE la playlist (pas uniquement des manches jouées).
+    // Distracteurs tirés de TOUTE la playlist (pas uniquement des manches jouées),
+    // en privilégiant ceux jamais vus dans les manches précédentes.
     const pool = distinctTitles.filter((t) => t !== v.title);
-    const options = shuffle([v.title, ...pickRandom(pool, 3, rng)], rng);
+    const options = shuffle([v.title, ...pickLeastSeen(pool, 3, seen, reserved, rng)], rng);
+    for (const opt of options) seen.set(opt, (seen.get(opt) ?? 0) + 1);
     return {
       youtube: v.videoId,
       startSeconds,

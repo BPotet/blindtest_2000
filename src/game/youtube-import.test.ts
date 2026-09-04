@@ -107,6 +107,55 @@ describe('buildRoundsFromVideos', () => {
     expect(fromOutside).toBe(true);
   });
 
+  // Playlist synthétique assez fournie pour ne jamais devoir répéter un titre.
+  const makeMany = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      title: `Artiste ${i} - Titre ${i}`,
+      videoId: `vid${String(i).padStart(8, '0')}`,
+    }));
+
+  it('ne resserre jamais le même titre d\'une manche à l\'autre quand la playlist suffit', () => {
+    // 12 titres distincts pour 3 manches = 12 propositions au total : il y a de
+    // quoi ne JAMAIS répéter un titre (ni comme leurre, ni comme bonne réponse).
+    for (const seed of [1, 7, 42, 1234, 99999]) {
+      const rounds = buildRoundsFromVideos(makeMany(12), { maxRounds: 3 }, seeded(seed));
+      expect(rounds).toHaveLength(3);
+      const all = rounds.flatMap((r) => r.options);
+      expect(all).toHaveLength(12);
+      expect(new Set(all).size).toBe(12); // zéro doublon entre les manches
+    }
+  });
+
+  it('ne réutilise pas comme leurre une bonne réponse d\'une autre manche', () => {
+    for (const seed of [3, 11, 555, 8080]) {
+      const rounds = buildRoundsFromVideos(makeMany(12), { maxRounds: 3 }, seeded(seed));
+      const answers = rounds.map((r) => r.answerLabel);
+      for (const r of rounds) {
+        // Aucune option, hormis sa propre bonne réponse, n'est la réponse d'une
+        // autre manche (ni déjà dévoilée, ni à venir).
+        const leaks = r.options.filter((o) => o !== r.answerLabel && answers.includes(o));
+        expect(leaks).toEqual([]);
+      }
+    }
+  });
+
+  it('étale la répétition quand la playlist est trop courte pour l\'éviter', () => {
+    // 5 titres pour 5 manches : chaque manche montre 4 titres sur 5, la
+    // répétition est mathématiquement inévitable. On vérifie qu'elle est
+    // répartie (aucun titre resservi en boucle pendant qu'un autre dort).
+    const rounds = buildRoundsFromVideos(VIDEOS, { maxRounds: 5 }, seeded(7));
+    expect(rounds).toHaveLength(5);
+    const counts = new Map<string, number>();
+    for (const r of rounds) {
+      expect(new Set(r.options).size).toBe(r.options.length); // options distinctes
+      expect(r.options).toContain(r.answerLabel);
+      for (const o of r.options) counts.set(o, (counts.get(o) ?? 0) + 1);
+    }
+    expect(counts.size).toBe(CLEANED_TITLES.length); // tous les titres servent
+    const values = [...counts.values()];
+    expect(Math.max(...values) - Math.min(...values)).toBeLessThanOrEqual(2);
+  });
+
   it('respecte les options de départ/durée/nombre', () => {
     const rounds = buildRoundsFromVideos(VIDEOS, { startSeconds: 45, durationSeconds: 20, maxRounds: 2 }, seeded(1));
     expect(rounds).toHaveLength(2);
